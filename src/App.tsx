@@ -22,8 +22,13 @@ import {
   CreditCard,
   Lock,
   AlertTriangle,
-  Search
+  Cookie,
+  Trash2,
+  Sparkles,
+  Cpu
 } from "lucide-react";
+
+import { clearAllCookiesAndCache } from "./utils/clearCache";
 
 // Import types & mock data
 import { BusinessLink, Route, Partner, Campaign, LogMessage } from "./types";
@@ -44,12 +49,13 @@ import AnalyticsReports from "./components/AnalyticsReports";
 import SupportDocs from "./components/SupportDocs";
 import AdminSettings from "./components/AdminSettings";
 import SubscriptionBilling from "./components/SubscriptionBilling";
+import NovaCreativeSuite from "./components/NovaCreativeSuite";
+import GoogleAIStudioFeatures from "./components/GoogleAIStudioFeatures";
 
 export default function App() {
   // Navigation State
   const [activeMenu, setActiveMenu] = useState<string>("dashboard");
   const [activeLinkCategory, setActiveLinkCategory] = useState<string>("all");
-  const [sidebarSearch, setSidebarSearch] = useState<string>("");
 
   // Subscription & User profile state
   const [currentUserProfile, setCurrentUserProfile] = useState<any | null>(() => {
@@ -61,124 +67,26 @@ export default function App() {
     return localStorage.getItem("mubuslink_forced_expired") === "true";
   });
 
-  // Live ticking time to drive real-time countdown updates
-  const [currentTime, setCurrentTime] = useState<number>(Date.now());
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(Date.now());
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
   const getTrialDaysRemaining = () => {
     if (!currentUserProfile || currentUserProfile.subscriptionStatus !== "trial") return 0;
     if (isForcedExpired) return 0;
     const start = new Date(currentUserProfile.trialStartedAt).getTime();
     const expiry = start + 7 * 24 * 60 * 60 * 1000;
-    const remaining = expiry - currentTime;
+    const remaining = expiry - Date.now();
     return Math.max(0, Math.ceil(remaining / (1000 * 60 * 60 * 24)));
-  };
-
-  const getTrialTimeRemaining = () => {
-    if (!currentUserProfile || currentUserProfile.subscriptionStatus !== "trial") return null;
-    if (isForcedExpired) return { days: 0, hours: 0, minutes: 0, seconds: 0, totalMs: 0 };
-    const start = new Date(currentUserProfile.trialStartedAt).getTime();
-    const expiry = start + 7 * 24 * 60 * 60 * 1000;
-    const remaining = expiry - currentTime;
-    if (remaining <= 0) return { days: 0, hours: 0, minutes: 0, seconds: 0, totalMs: 0 };
-    
-    const days = Math.floor(remaining / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((remaining % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
-    const seconds = Math.floor((remaining % (1000 * 60)) / 1000);
-    return { days, hours, minutes, seconds, totalMs: remaining };
   };
 
   const isTrialExpired = currentUserProfile && 
     currentUserProfile.subscriptionStatus === "trial" && 
     (isForcedExpired || getTrialDaysRemaining() <= 0);
 
-  const isSubscriptionExpired = currentUserProfile && 
-    (currentUserProfile.subscriptionStatus === "monthly" || currentUserProfile.subscriptionStatus === "yearly") && 
-    new Date(currentUserProfile.subscriptionExpiresAt).getTime() <= currentTime;
-
-  const isAccessRestricted = isTrialExpired || isSubscriptionExpired;
-
-  // Auto-redirect to paywall/subscription tab if trial/subscription has expired
+  // Auto-redirect to paywall/subscription tab if trial has expired
   useEffect(() => {
-    if (isAccessRestricted && activeMenu !== "subscription") {
+    if (isTrialExpired && activeMenu !== "subscription") {
       setActiveMenu("subscription");
-      addLog("Your transit operational license has expired. Please select a subscription plan to restore access.", "error");
+      addLog("Your 7-Day Free Trial has expired. Please subscribe via Stripe.", "error");
     }
-  }, [isAccessRestricted, activeMenu]);
-
-  // Background Auto-Renewal Processing
-  useEffect(() => {
-    if (!currentUserProfile) return;
-    
-    const checkRenewal = async () => {
-      const expiresAt = new Date(currentUserProfile.subscriptionExpiresAt).getTime();
-      
-      // If subscription has expired and auto-renew is enabled (trial does not auto-renew itself, only paid cycles)
-      if (currentTime >= expiresAt && currentUserProfile.autoRenew && currentUserProfile.subscriptionStatus !== "trial") {
-        const nextExpiry = new Date();
-        const plan = currentUserProfile.subscriptionStatus; // "monthly" or "yearly"
-        
-        if (plan === "monthly") {
-          nextExpiry.setMonth(nextExpiry.getMonth() + 1);
-        } else if (plan === "yearly") {
-          nextExpiry.setFullYear(nextExpiry.getFullYear() + 1);
-        }
-        
-        const renewedProfile = {
-          ...currentUserProfile,
-          subscriptionExpiresAt: nextExpiry.toISOString(),
-          lastRenewedAt: new Date().toISOString()
-        };
-        
-        setCurrentUserProfile(renewedProfile);
-        localStorage.setItem("mubuslink_mock_user", JSON.stringify(renewedProfile));
-        
-        addLog(`[Auto-Renewal] Your ${plan} corporate license has automatically renewed! Card billed successfully.`, "success");
-        
-        // Push notification alert
-        setNotifications(prev => [
-          {
-            id: `renewal_${Date.now()}`,
-            msg: `💳 AUTO-RENEWAL COMPLETED: Your ${plan} subscription renewed successfully. Next billing: ${nextExpiry.toLocaleDateString()}.`,
-            unread: true,
-            time: "Just now"
-          },
-          ...prev
-        ]);
-      }
-    };
-    
-    checkRenewal();
-  }, [currentUserProfile, currentTime]);
-
-  // Handle Advance Notifications of Trial Expiry
-  useEffect(() => {
-    if (!currentUserProfile || currentUserProfile.subscriptionStatus !== "trial" || isTrialExpired) return;
-    
-    const days = getTrialDaysRemaining();
-    if (days <= 3) {
-      setNotifications(prev => {
-        const hasAlert = prev.some(n => n.id === "trial-expire-alert");
-        if (hasAlert) return prev;
-        return [
-          {
-            id: "trial-expire-alert",
-            msg: `⚠️ ADVANCE NOTICE: Your 7-Day Free Trial expires in ${days} days! Complete subscription to guarantee sitemap sync.`,
-            unread: true,
-            time: "Just now"
-          },
-          ...prev
-        ];
-      });
-    }
-  }, [currentUserProfile, isTrialExpired]);
+  }, [isTrialExpired, activeMenu]);
 
   const handleForceExpireToggle = (expired: boolean) => {
     setIsForcedExpired(expired);
@@ -219,6 +127,28 @@ export default function App() {
     { id: "2", msg: "Allianz Fleet contract renewal critical review pending.", unread: true, time: "2h ago" },
   ]);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [isClearingHeaderCache, setIsClearingHeaderCache] = useState(false);
+
+  const handleHeaderClearCache = async () => {
+    if (!confirm("Clear all cookies, localStorage, sessionStorage, and cache completely from this app?")) {
+      return;
+    }
+    setIsClearingHeaderCache(true);
+    try {
+      const res = await clearAllCookiesAndCache();
+      addLog(`Cookies and Cache completely wiped (${res.clearedItems.join(", ")})`, "success");
+      setLinks(initialBusinessLinks);
+      setRoutes(initialRoutes);
+      setPartners(initialPartners);
+      setCampaigns(initialCampaigns);
+      setCurrentUserProfile(null);
+      setIsForcedExpired(false);
+    } catch (err: any) {
+      addLog(`Failed to clear cookies/cache: ${err.message}`, "warning");
+    } finally {
+      setIsClearingHeaderCache(false);
+    }
+  };
 
   // Local storage synchronization & initial log triggering
   useEffect(() => {
@@ -410,8 +340,8 @@ export default function App() {
 
   // Quick Action triggers from Dashboard
   const handleQuickAction = (action: string) => {
-    if (isAccessRestricted) {
-      addLog("Access Denied: License has expired. Please subscribe or renew in Subscription & Billing.", "error");
+    if (isTrialExpired) {
+      addLog("Access Denied: Trial expired. Please subscribe to perform actions.", "error");
       setActiveMenu("subscription");
       return;
     }
@@ -442,6 +372,8 @@ export default function App() {
       case "analytics": return "/analytics";
       case "support": return "/support";
       case "admin": return "/admin";
+      case "nova-suite": return "/nova-suite";
+      case "google-ai-studio": return "/google-ai-studio";
       default: return "/";
     }
   };
@@ -449,19 +381,17 @@ export default function App() {
   // Navigation sidebar item details
   const navItems = [
     { id: "dashboard", label: "Dashboard Hub", icon: LayoutDashboard },
+    { id: "google-ai-studio", label: "Google AI Studio Core", icon: Cpu },
     { id: "subscription", label: "Subscription & Billing", icon: CreditCard },
     { id: "links", label: "Business Links Directory", icon: Globe },
     { id: "routes", label: "Routes & Schedules", icon: Truck },
     { id: "partners", label: "Vendors & Partners", icon: User },
     { id: "marketing", label: "Marketing & Promotions", icon: Megaphone },
     { id: "analytics", label: "Analytics & Reports", icon: Activity },
+    { id: "nova-suite", label: "Nova AI Creative Suite", icon: Sparkles },
     { id: "support", label: "Support & Documentation", icon: HelpCircle },
     { id: "admin", label: "Admin & Settings", icon: Settings },
   ];
-
-  const filteredNavItems = navItems.filter((item) =>
-    item.label.toLowerCase().includes(sidebarSearch.toLowerCase())
-  );
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-emerald-500/30 selection:text-emerald-300">
@@ -498,7 +428,7 @@ export default function App() {
           </div>
 
           {/* Handshakes & Notifications */}
-          <div className="flex items-center gap-4 justify-end shrink-0">
+          <div className="flex items-center gap-3 justify-end shrink-0">
             {/* System handshakes */}
             <div className="hidden sm:flex items-center gap-3.5 text-[10px] font-mono font-semibold">
               <div className="flex items-center gap-1.5 text-slate-500">
@@ -506,6 +436,17 @@ export default function App() {
                 <span>DB ACTIVE</span>
               </div>
             </div>
+
+            {/* Clear Cookies & Cache Quick Button */}
+            <button
+              onClick={handleHeaderClearCache}
+              disabled={isClearingHeaderCache}
+              className="px-2.5 py-1.5 bg-rose-950/60 hover:bg-rose-900/80 border border-rose-800/50 text-rose-300 hover:text-white rounded-xl text-[10px] font-bold font-mono flex items-center gap-1.5 transition-all outline-none cursor-pointer"
+              title="Clear all cookies, localStorage, sessionStorage, and browser cache"
+            >
+              <Cookie size={12} className={isClearingHeaderCache ? "animate-spin text-rose-400" : "text-amber-400"} />
+              <span className="hidden lg:inline">{isClearingHeaderCache ? "Clearing..." : "Clear Cookies & Cache"}</span>
+            </button>
 
             {/* Notification bell dropdown trigger */}
             <div className="relative">
@@ -578,172 +519,40 @@ export default function App() {
         </div>
       )}
 
-      {/* Dynamic Trial / Subscription Warning Banner */}
-      {currentUserProfile && currentUserProfile.subscriptionStatus === "trial" && (
-        <div className="max-w-7xl mx-auto w-full px-4 md:px-6 pt-4">
-          {(() => {
-            const tr = getTrialTimeRemaining();
-            if (!tr) return null;
-            const isCritical = tr.days < 3;
-            return (
-              <div 
-                className={`relative overflow-hidden rounded-2xl border p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 transition-all duration-300 ${
-                  isCritical 
-                    ? "bg-rose-500/5 border-rose-500/30 text-rose-200 shadow-[0_0_15px_rgba(239,68,68,0.05)]" 
-                    : "bg-emerald-500/5 border-emerald-500/20 text-emerald-200"
-                }`}
-              >
-                {/* Background ambient glow */}
-                <div className={`absolute -right-12 -top-12 w-48 h-48 rounded-full blur-3xl opacity-20 pointer-events-none ${
-                  isCritical ? "bg-rose-500" : "bg-emerald-500"
-                }`} />
-                
-                <div className="flex items-start gap-3 relative z-10">
-                  <div className={`p-2 rounded-xl mt-0.5 ${
-                    isCritical ? "bg-rose-500/10 text-rose-400" : "bg-emerald-500/10 text-emerald-400"
-                  }`}>
-                    {isCritical ? <Lock size={16} className="animate-pulse" /> : <Activity size={16} />}
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-black tracking-wide uppercase font-mono mb-0.5">
-                      {isCritical ? "⚠️ Critical License Warning" : "Trial Active"}
-                    </h4>
-                    <p className="text-xs text-slate-400 max-w-xl">
-                      {isCritical 
-                        ? `Your 7-Day Free Trial is expiring very soon! Access to premium routes and directory syncing will be suspended.`
-                        : `You are currently evaluating MUBUSLINK APP on a full-access 7-Day Free Trial.`}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3 relative z-10 self-end sm:self-center font-mono">
-                  <div className="text-right">
-                    <span className="text-[10px] text-slate-500 uppercase tracking-wider block mb-0.5">Time Remaining</span>
-                    <span className={`text-xs font-black px-2 py-1 rounded bg-slate-950 border ${
-                      isCritical ? "text-rose-400 border-rose-500/30" : "text-emerald-400 border-emerald-500/20"
-                    }`}>
-                      {tr.days}d {tr.hours}h {tr.minutes}m {tr.seconds}s
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => setActiveMenu("subscription")}
-                    className={`px-3 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-xl cursor-pointer transition-all ${
-                      isCritical
-                        ? "bg-rose-500 text-slate-950 hover:bg-rose-400 shadow-[0_0_10px_rgba(244,63,94,0.2)]"
-                        : "bg-emerald-500 text-slate-950 hover:bg-emerald-400"
-                    }`}
-                  >
-                    Subscribe Now
-                  </button>
-                </div>
-              </div>
-            );
-          })()}
-        </div>
-      )}
-
-      {/* Warning if Paid Subscription is Expiring & autoRenew is false */}
-      {currentUserProfile && currentUserProfile.subscriptionStatus !== "trial" && !currentUserProfile.autoRenew && (
-        <div className="max-w-7xl mx-auto w-full px-4 md:px-6 pt-4">
-          {(() => {
-            const expiresTime = new Date(currentUserProfile.subscriptionExpiresAt).getTime();
-            const remainingMs = expiresTime - currentTime;
-            const remainingDays = Math.max(0, Math.ceil(remainingMs / (1000 * 60 * 60 * 24)));
-            
-            if (remainingDays <= 5 && remainingDays > 0) {
-              return (
-                <div className="relative overflow-hidden rounded-2xl border bg-amber-500/5 border-amber-500/20 text-amber-200 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                  <div className="flex items-start gap-3 relative z-10">
-                    <div className="p-2 bg-amber-500/10 text-amber-400 rounded-xl mt-0.5">
-                      <Lock size={16} />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-black tracking-wide uppercase font-mono mb-0.5">
-                        ⚠️ Subscription Expiring Soon
-                      </h4>
-                      <p className="text-xs text-slate-400">
-                        Your {currentUserProfile.subscriptionStatus} plan expires in {remainingDays} days. Enable Automatic Renewal to guarantee uninterrupted service.
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setActiveMenu("subscription")}
-                    className="px-3 py-1.5 text-[10px] bg-amber-500 text-slate-950 font-black uppercase tracking-wider rounded-xl cursor-pointer hover:bg-amber-400"
-                  >
-                    Enable Auto-Renew
-                  </button>
-                </div>
-              );
-            }
-            return null;
-          })()}
-        </div>
-      )}
-
       {/* Main Content Layout with Sidebar */}
       <div className="max-w-7xl mx-auto w-full flex-1 flex flex-col md:flex-row p-4 md:p-6 gap-6">
         
         {/* Left Sidebar Navigation */}
         <aside className="md:w-[240px] shrink-0" id="sidebar-navigation">
-          <div className="bg-slate-900/10 border border-slate-900 rounded-2xl p-2 md:sticky md:top-24 space-y-2.5">
-            {/* Quick Filter Navigation Search Input */}
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-500">
-                <Search size={13} />
-              </span>
-              <input
-                type="text"
-                placeholder="Filter menu..."
-                value={sidebarSearch}
-                onChange={(e) => setSidebarSearch(e.target.value)}
-                className="w-full bg-slate-950/40 border border-slate-900 focus:border-emerald-500/40 rounded-xl pl-8 pr-7 py-2 text-xs text-slate-200 placeholder-slate-500 outline-none transition-colors"
-              />
-              {sidebarSearch && (
+          <nav className="space-y-1 bg-slate-900/10 border border-slate-900 rounded-2xl p-2 md:sticky md:top-24">
+            {navItems.map((item) => {
+              const IconComp = item.icon;
+              const isActive = activeMenu === item.id;
+              const isLocked = isTrialExpired && item.id !== "subscription";
+              return (
                 <button
-                  onClick={() => setSidebarSearch("")}
-                  className="absolute inset-y-0 right-0 flex items-center pr-2.5 text-slate-500 hover:text-slate-300 cursor-pointer select-none"
-                  title="Clear search"
+                  key={item.id}
+                  disabled={isLocked}
+                  onClick={() => {
+                    setActiveMenu(item.id);
+                    addLog(`Opened workspace: ${item.label}`, "info");
+                  }}
+                  className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-left text-xs font-semibold tracking-wide transition-all ${
+                    isActive 
+                      ? "bg-emerald-600/10 border border-emerald-500/30 text-emerald-400 font-bold" 
+                      : isLocked
+                        ? "text-slate-650 border border-transparent cursor-not-allowed opacity-40"
+                        : "text-slate-400 border border-transparent hover:text-slate-200 hover:bg-slate-900/40"
+                  }`}
                 >
-                  <X size={12} />
+                  <IconComp size={15} className={isActive ? "text-emerald-400" : isLocked ? "text-slate-700" : "text-slate-500"} />
+                  <span className="flex-1">{item.label}</span>
+                  {isLocked && <Lock size={11} className="text-rose-500/60" />}
+                  {isActive && !isLocked && <ChevronRight size={12} className="text-emerald-400/80" />}
                 </button>
-              )}
-            </div>
-
-            <nav className="space-y-1">
-              {filteredNavItems.map((item) => {
-                const IconComp = item.icon;
-                const isActive = activeMenu === item.id;
-                const isLocked = isAccessRestricted && item.id !== "subscription";
-                return (
-                  <button
-                    key={item.id}
-                    disabled={isLocked}
-                    onClick={() => {
-                      setActiveMenu(item.id);
-                      addLog(`Opened workspace: ${item.label}`, "info");
-                    }}
-                    className={`w-full flex items-center gap-3 py-3 rounded-xl text-left text-xs font-semibold tracking-wide transition-all duration-200 ${
-                      isActive 
-                        ? "bg-gradient-to-r from-emerald-500/10 via-emerald-600/5 to-transparent border-y border-r border-l-4 border-emerald-500/20 border-l-emerald-400 text-emerald-400 font-bold shadow-[0_0_12px_rgba(16,185,129,0.08)] hover:scale-[1.02] active:scale-[0.98] pl-2.5 pr-3.5" 
-                        : isLocked
-                          ? "text-slate-650 border border-transparent cursor-not-allowed opacity-40 px-3.5"
-                          : "text-slate-400 border border-transparent hover:text-slate-200 hover:bg-slate-900/40 hover:scale-[1.02] active:scale-[0.98] px-3.5"
-                    }`}
-                  >
-                    <IconComp size={15} className={isActive ? "text-emerald-400" : isLocked ? "text-slate-700" : "text-slate-500"} />
-                    <span className="flex-1 truncate">{item.label}</span>
-                    {isLocked && <Lock size={11} className="text-rose-500/60" />}
-                    {isActive && !isLocked && <ChevronRight size={12} className="text-emerald-400/80" />}
-                  </button>
-                );
-              })}
-              {filteredNavItems.length === 0 && (
-                <div className="text-center py-6 px-2">
-                  <p className="text-slate-500 text-xs italic">No matching menus</p>
-                </div>
-              )}
-            </nav>
-          </div>
+              );
+            })}
+          </nav>
         </aside>
 
         {/* Dynamic Workspace Container */}
@@ -779,7 +588,6 @@ export default function App() {
                   onDeleteLink={handleDeleteLink}
                   activeCategory={activeLinkCategory}
                   onCategoryChange={(cat) => setActiveLinkCategory(cat)}
-                  onTriggerLog={addLog}
                 />
               )}
 
@@ -791,7 +599,6 @@ export default function App() {
                   onAddRoute={handleAddRoute}
                   onEditRoute={handleEditRoute}
                   onDeleteRoute={handleDeleteRoute}
-                  onTriggerLog={addLog}
                 />
               )}
 
@@ -802,7 +609,6 @@ export default function App() {
                   onAddPartner={handleAddPartner}
                   onEditPartner={handleEditPartner}
                   onDeletePartner={handleDeletePartner}
-                  onTriggerLog={addLog}
                 />
               )}
 
@@ -825,6 +631,21 @@ export default function App() {
                   routes={routes}
                   partners={partners}
                   campaigns={campaigns}
+                />
+              )}
+
+              {/* Google AI Studio Core Features */}
+              {activeMenu === "google-ai-studio" && (
+                <GoogleAIStudioFeatures 
+                  onTriggerLog={addLog}
+                  onNavigateTab={(tab) => setActiveMenu(tab)}
+                />
+              )}
+
+              {/* Nova AI Creative Suite */}
+              {activeMenu === "nova-suite" && (
+                <NovaCreativeSuite 
+                  onTriggerLog={addLog}
                 />
               )}
 

@@ -51,7 +51,6 @@ export default function MarketingPromotions({
   const [campLanding, setCampLanding] = useState("");
   const [campCodes, setCampCodes] = useState("");
   const [campRoutes, setCampRoutes] = useState<string[]>([]);
-  const [isAiGeneratingCamp, setIsAiGeneratingCamp] = useState(false);
 
   // SEO / AI Website Generator states
   const [businessName, setBusinessName] = useState("Mubuslink Seattle Express");
@@ -115,85 +114,6 @@ export default function MarketingPromotions({
     });
     setIsAddModalOpen(false);
     onTriggerLog(`Promotional Campaign '${campName}' launched successfully.`, "success");
-  };
-
-  const handleAiSuggestCampaign = async () => {
-    setIsAiGeneratingCamp(true);
-    onTriggerLog("Consulting Gemini marketer to draft high-converting corporate promotion campaigns...", "info");
-    try {
-      const prompt = `Generate a single highly professional promotional campaign for a transit bus platform (MUBUSLINK system).
-Generate a single raw JSON object only. Do NOT enclose in markdown code fences or backticks. Follow this exact schema:
-{
-  "name": "A high-fidelity campaign name (e.g. Cascadia Fall Commuter Pass, Weekend Wine Country Shuttle Promo, Puget Sound Eco-Discount)",
-  "channel": "The marketing channel (e.g. Email Newsletter, Regional Press, Mobile Push, Social Media Ads)",
-  "landingPage": "https://mubuslink.ai.studio/marketing/promo",
-  "promoCodes": ["PROMO10", "ECOTRAVEL26"], 
-  "targetRoutes": [] 
-}`;
-
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: prompt, tone: "Professional" })
-      });
-      const data = await res.json();
-      if (data && data.text) {
-        let cleanText = data.text.trim();
-        if (cleanText.startsWith("```")) {
-          cleanText = cleanText.replace(/^```json\s*/i, "").replace(/```$/, "").trim();
-        }
-        const parsed = JSON.parse(cleanText);
-        
-        const todayStr = new Date().toISOString().split("T")[0];
-        const monthLaterStr = new Date(Date.now() + 2592000000).toISOString().split("T")[0];
-
-        onAddCampaign({
-          name: parsed.name || "AI Promo Campaign",
-          channel: parsed.channel || "Social Media Ads",
-          startDate: todayStr,
-          endDate: monthLaterStr,
-          status: "active",
-          landingPage: parsed.landingPage || "https://mubuslink.ai.studio/marketing/promo",
-          promoCodes: parsed.promoCodes || ["AITRAVEL"],
-          targetRoutes: parsed.targetRoutes || []
-        });
-        
-        onTriggerLog(`AI Orchestrator successfully scheduled promo: "${parsed.name}" starting today!`, "success");
-      } else {
-        throw new Error("No text response from Gemini");
-      }
-    } catch (e) {
-      console.warn("AI Campaign generation error, using fallback values:", e);
-      const todayStr = new Date().toISOString().split("T")[0];
-      const monthLaterStr = new Date(Date.now() + 2592000000).toISOString().split("T")[0];
-      const fallbackList = [
-        {
-          name: "Cascadia Fall Commuter Pass",
-          channel: "Email Newsletter",
-          startDate: todayStr,
-          endDate: monthLaterStr,
-          status: "active",
-          landingPage: "https://mubuslink.ai.studio/marketing/promo",
-          promoCodes: ["FALLPASS26", "COMMUTE15"],
-          targetRoutes: []
-        },
-        {
-          name: "Weekend Wine Country Shuttle Promo",
-          channel: "Social Media Ads",
-          startDate: todayStr,
-          endDate: monthLaterStr,
-          status: "active",
-          landingPage: "https://mubuslink.ai.studio/marketing/promo",
-          promoCodes: ["WINEWEEKEND", "SHUTTLE10"],
-          targetRoutes: []
-        }
-      ];
-      const selected = fallbackList[Math.floor(Math.random() * fallbackList.length)];
-      onAddCampaign(selected);
-      onTriggerLog(`AI Fallback campaign scheduled: "${selected.name}" with current dates.`, "success");
-    } finally {
-      setIsAiGeneratingCamp(false);
-    }
   };
 
   // AI Generation Proxy logic
@@ -325,25 +245,13 @@ Generate a single raw JSON object only. Do NOT enclose in markdown code fences o
           {/* Dashboard and Actions Row */}
           <div className="flex justify-between items-center">
             <span className="text-[10px] font-black uppercase text-slate-500 font-mono tracking-widest pl-1">Live Campaigns Metrics</span>
-            <div className="flex items-center gap-2">
-              <button 
-                onClick={handleAiSuggestCampaign}
-                disabled={isAiGeneratingCamp}
-                className="px-4 py-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-550 hover:to-indigo-550 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer select-none"
-                title="Use Gemini AI to dynamically draft a high-converting marketing campaign with current dates"
-              >
-                <Sparkles size={14} className={isAiGeneratingCamp ? "animate-spin" : ""} />
-                <span>{isAiGeneratingCamp ? "Drafting..." : "AI Suggest Promo"}</span>
-              </button>
-
-              <button 
-                onClick={openAddCamp}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-550 text-slate-950 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer select-none"
-              >
-                <Plus size={14} className="font-black" />
-                <span>Launch New Promo</span>
-              </button>
-            </div>
+            <button 
+              onClick={openAddCamp}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-550 text-slate-950 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer select-none"
+            >
+              <Plus size={14} className="font-black" />
+              <span>Launch New Promo</span>
+            </button>
           </div>
 
           {/* Campaigns Grid */}

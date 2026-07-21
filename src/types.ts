@@ -2,10 +2,32 @@ export interface BusinessLink {
   id: string;
   title: string;
   description: string;
-  category: "operations" | "finance" | "hr_training" | "legal_compliance" | "external";
+  category: string; // operations | finance | customer-services | marketing | partners-vendors | local-profiles | company-intelligence
   tags: string[];
   url: string;
+  directorySource: string; // e.g., Yelp, BBB, Trustpilot, Glassdoor, Crunchbase, Internal
   lastUpdated: string;
+  notes: string;
+  clicks?: number;
+}
+
+export interface CategorySchema {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  route: string;
+}
+
+export interface TagSchema {
+  id: string;
+  name: string;
+}
+
+export interface DirectorySourceSchema {
+  id: string;
+  name: string;
+  homepage: string;
 }
 
 export interface Route {
@@ -20,7 +42,6 @@ export interface Route {
   vehicles: string[];
   drivers: string[];
   linkedResources: string[]; // references to BusinessLink IDs or titles
-  dispatchedDate?: string; // current date when dispatched
 }
 
 export interface Partner {

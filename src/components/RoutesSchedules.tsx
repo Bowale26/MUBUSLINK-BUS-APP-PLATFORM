@@ -11,8 +11,7 @@ import {
   ExternalLink,
   CheckCircle,
   XCircle,
-  FileText,
-  Sparkles
+  FileText
 } from "lucide-react";
 import { Route, BusinessLink } from "../types";
 
@@ -22,7 +21,6 @@ interface RoutesSchedulesProps {
   onAddRoute: (route: Omit<Route, "id">) => void;
   onEditRoute: (route: Route) => void;
   onDeleteRoute: (id: string) => void;
-  onTriggerLog?: (msg: string, type: "info" | "success" | "warning") => void;
 }
 
 export default function RoutesSchedules({
@@ -30,13 +28,11 @@ export default function RoutesSchedules({
   links,
   onAddRoute,
   onEditRoute,
-  onDeleteRoute,
-  onTriggerLog
+  onDeleteRoute
 }: RoutesSchedulesProps) {
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(routes[0]?.id || null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isAiGenerating, setIsAiGenerating] = useState(false);
 
   // Form states
   const [routeName, setRouteName] = useState("");
@@ -86,105 +82,9 @@ export default function RoutesSchedules({
       },
       vehicles: routeVehicles.split(",").map(v => v.trim()).filter(Boolean),
       drivers: routeDrivers.split(",").map(d => d.trim()).filter(Boolean),
-      linkedResources: routeLinkedResources,
-      dispatchedDate: new Date().toISOString()
+      linkedResources: routeLinkedResources
     });
     setIsAddModalOpen(false);
-  };
-
-  const handleAiSuggest = async () => {
-    setIsAiGenerating(true);
-    if (onTriggerLog) onTriggerLog("Contacting Gemini dispatch agent to plan optimal transit schedules...", "info");
-    try {
-      const prompt = `Generate a single highly realistic transit bus route for Cascadia Regional Corridor (MUBUSLINK system).
-Generate a single raw JSON object only. Do NOT enclose in markdown code fences or backticks. Follow this exact schema:
-{
-  "name": "A highly professional and realistic route name (e.g. Cascadia Super Shuttle, Puget Sound Link Express, Willamette Coastal Cruiser)",
-  "region": "The geographical region of operations (e.g. Seattle-Portland, Cascadian Metro, Olympic Peninsula)",
-  "status": "active",
-  "stops": ["Stop 1", "Stop 2", "Stop 3", "Stop 4"], 
-  "timetable": {
-    "Weekdays": ["07:30", "11:30", "15:30", "19:30"],
-    "Weekends": ["09:00", "14:30", "18:00"]
-  },
-  "vehicles": ["Vehicle Class MC-300", "Vehicle Class BL-40"], 
-  "drivers": ["Operator Name A", "Operator Name B"] 
-}`;
-
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: prompt, tone: "Professional" })
-      });
-      const data = await res.json();
-      if (data && data.text) {
-        let cleanText = data.text.trim();
-        if (cleanText.startsWith("```")) {
-          cleanText = cleanText.replace(/^```json\s*/i, "").replace(/```$/, "").trim();
-        }
-        const parsed = JSON.parse(cleanText);
-        
-        onAddRoute({
-          name: parsed.name || "AI Generated Route",
-          region: parsed.region || "Cascadia Hub",
-          status: "active",
-          stops: parsed.stops || ["Seattle", "Tacoma", "Olympia", "Portland"],
-          timetable: parsed.timetable || {
-            "Weekdays": ["08:00", "12:00", "16:00"],
-            "Weekends": ["10:00", "15:00"]
-          },
-          vehicles: parsed.vehicles || ["Express 101"],
-          drivers: parsed.drivers || ["John Doe"],
-          linkedResources: [],
-          dispatchedDate: new Date().toISOString()
-        });
-        
-        if (onTriggerLog) {
-          onTriggerLog(`AI Orchestrator successfully dispatched route: "${parsed.name}" with current date!`, "success");
-        }
-      } else {
-        throw new Error("No text response from Gemini");
-      }
-    } catch (e) {
-      console.warn("AI Route scheduling error, using fallback values:", e);
-      const fallbackList = [
-        {
-          name: "Cascadia Olympic Dayrider",
-          region: "Olympic Peninsula, WA",
-          status: "active" as const,
-          stops: ["Port Angeles", "Sequim", "Bremerton", "Seattle Ferry Terminal"],
-          timetable: {
-            "Weekdays": ["06:45", "11:15", "15:45"],
-            "Weekends": ["08:30", "13:30", "17:30"]
-          },
-          vehicles: ["Coach MC-40", "Transit Van BL-12"],
-          drivers: ["Sarah Jenkins", "Thomas Alva"],
-          linkedResources: [],
-          dispatchedDate: new Date().toISOString()
-        },
-        {
-          name: "Willamette Valley Regional Link",
-          region: "Portland-Eugene, OR",
-          status: "active" as const,
-          stops: ["Portland Union", "Salem Transit Center", "Albany Hub", "Eugene Station"],
-          timetable: {
-            "Weekdays": ["08:00", "12:30", "17:00", "20:30"],
-            "Weekends": ["09:00", "15:00", "19:00"]
-          },
-          vehicles: ["Double Decker DD-80", "Eco Transit 50"],
-          drivers: ["Li Wei", "Elena Rostova"],
-          linkedResources: [],
-          dispatchedDate: new Date().toISOString()
-        }
-      ];
-      const selected = fallbackList[Math.floor(Math.random() * fallbackList.length)];
-      onAddRoute(selected);
-      if (onTriggerLog) {
-        onTriggerLog(`AI Fallback route dispatched: "${selected.name}" with current date.`, "success");
-      }
-    } finally {
-      setIsAiGenerating(false);
-    }
   };
 
   const submitEdit = (e: React.FormEvent) => {
@@ -209,27 +109,14 @@ Generate a single raw JSON object only. Do NOT enclose in markdown code fences o
       <div className="flex flex-col lg:flex-row gap-6">
         {/* Left Side: Route Scroller list (5 columns) */}
         <div className="lg:w-[350px] shrink-0 space-y-4">
-          <div className="flex flex-col gap-2.5 bg-slate-900/20 p-3 border border-slate-900 rounded-2xl">
-            <h3 className="text-[10px] font-black uppercase text-slate-400 font-mono tracking-widest pl-1">Route Fleet Dispatch</h3>
-            <div className="flex gap-2">
-              <button 
-                onClick={handleAiSuggest}
-                disabled={isAiGenerating}
-                className="flex-1 py-1.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-550 hover:to-indigo-550 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-500 text-white font-bold rounded-lg text-[9px] uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer select-none"
-                title="Use Gemini AI to dynamically draft a realistic public transport route with current date"
-              >
-                <Sparkles size={11} className={isAiGenerating ? "animate-spin" : ""} />
-                <span>{isAiGenerating ? "Drafting..." : "AI Dispatch"}</span>
-              </button>
-              
-              <button 
-                onClick={openAdd}
-                className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-550 text-slate-950 font-bold rounded-lg text-[9px] uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer select-none"
-              >
-                <Plus size={11} className="font-black" />
-                <span>Add Route</span>
-              </button>
-            </div>
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-black uppercase text-slate-500 font-mono tracking-widest pl-1">Route Fleet Dispatch</h3>
+            <button 
+              onClick={openAdd}
+              className="p-1 px-2.5 bg-emerald-500 hover:bg-emerald-450 text-slate-950 font-black rounded-lg text-[9px] uppercase tracking-wider flex items-center gap-1 transition-colors select-none"
+            >
+              <Plus size={10} /> Add Route
+            </button>
           </div>
 
           <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
@@ -279,12 +166,6 @@ Generate a single raw JSON object only. Do NOT enclose in markdown code fences o
                     <span className="text-[9px] px-1.5 py-0.5 bg-slate-950 text-slate-500 rounded border border-slate-900 font-mono font-bold">ROUTE DETAIL WORKSPACE</span>
                     <span className="text-slate-600 font-black">•</span>
                     <span className="text-slate-400 text-[10px] font-mono">{activeRoute.region}</span>
-                    {activeRoute.dispatchedDate && (
-                      <>
-                        <span className="text-slate-600 font-black">•</span>
-                        <span className="text-slate-400 text-[10px] font-mono">Dispatched: {new Date(activeRoute.dispatchedDate).toLocaleDateString()}</span>
-                      </>
-                    )}
                   </div>
                   <h3 className="text-base md:text-lg font-black text-white font-display select-text">{activeRoute.name}</h3>
                 </div>

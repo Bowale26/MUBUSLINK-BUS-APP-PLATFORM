@@ -16,8 +16,7 @@ import {
   Zap,
   Truck,
   Ticket,
-  Shield,
-  Sparkles
+  Shield
 } from "lucide-react";
 import { Partner } from "../types";
 
@@ -26,20 +25,17 @@ interface VendorsPartnersProps {
   onAddPartner: (partner: Omit<Partner, "id">) => void;
   onEditPartner: (partner: Partner) => void;
   onDeletePartner: (id: string) => void;
-  onTriggerLog?: (msg: string, type: "info" | "success" | "warning") => void;
 }
 
 export default function VendorsPartners({
   partners,
   onAddPartner,
   onEditPartner,
-  onDeletePartner,
-  onTriggerLog
+  onDeletePartner
 }: VendorsPartnersProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isAiGenerating, setIsAiGenerating] = useState(false);
 
   // Form states
   const [partnerName, setPartnerName] = useState("");
@@ -122,88 +118,6 @@ export default function VendorsPartners({
     setIsEditModalOpen(false);
   };
 
-  const handleAiSuggest = async () => {
-    setIsAiGenerating(true);
-    if (onTriggerLog) onTriggerLog("Contacting Gemini broker to match optimal logistics vendors...", "info");
-    try {
-      const prompt = `Generate a single highly realistic vendor or corporate partner for a transit bus platform (MUBUSLINK system).
-Generate a single raw JSON object only. Do NOT enclose in markdown code fences or backticks. Follow this exact schema:
-{
-  "name": "A highly realistic vendor name (e.g. Cascadia Clean Fuel Corp, Pacific Telemetry Systems, Apex Transit Detailing)",
-  "category": "The service domain (e.g. Fuel Logistics, GPS & Telemetry, Fleet Maintenance)",
-  "contact": {
-    "email": "contact@vendor.com",
-    "phone": "555-019-2834"
-  },
-  "contractStatus": "active",
-  "links": {
-    "portal": "https://mubuslink.ai.studio/portals/partner-control",
-    "support": "https://mubuslink.ai.studio/portals/partner-help",
-    "sla": "https://mubuslink.ai.studio/portals/sla-spec"
-  }
-}`;
-
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: prompt, tone: "Professional" })
-      });
-      const data = await res.json();
-      if (data && data.text) {
-        let cleanText = data.text.trim();
-        if (cleanText.startsWith("```")) {
-          cleanText = cleanText.replace(/^```json\s*/i, "").replace(/```$/, "").trim();
-        }
-        const parsed = JSON.parse(cleanText);
-        
-        onAddPartner({
-          name: parsed.name || "AI Partner",
-          logo: "Truck",
-          category: parsed.category || "General Services",
-          contact: parsed.contact || { email: "operations@mubuslink.com", phone: "555-100-2000" },
-          contractStatus: "active",
-          renewalDate: new Date(Date.now() + 31536000000).toISOString().split("T")[0], 
-          links: parsed.links || { portal: "#", support: "#", sla: "#" }
-        });
-        
-        if (onTriggerLog) {
-          onTriggerLog(`AI Orchestrator successfully cataloged: "${parsed.name}" with renewal date set!`, "success");
-        }
-      } else {
-        throw new Error("No text response from Gemini");
-      }
-    } catch (e) {
-      console.warn("AI Vendor partner error, using fallback values:", e);
-      const fallbackList = [
-        {
-          name: "Cascadia Clean Fuel Corp",
-          logo: "Truck",
-          category: "Fuel Logistics",
-          contact: { email: "fuel@cascadiaclean.com", phone: "503-555-0145" },
-          contractStatus: "active",
-          renewalDate: new Date(Date.now() + 31536000000).toISOString().split("T")[0],
-          links: { portal: "https://mubuslink.ai.studio", support: "https://mubuslink.ai.studio", sla: "https://mubuslink.ai.studio" }
-        },
-        {
-          name: "Pacific Telemetry Systems",
-          logo: "Zap",
-          category: "GPS & Telemetry",
-          contact: { email: "ops@pactelemetry.net", phone: "206-555-8910" },
-          contractStatus: "active",
-          renewalDate: new Date(Date.now() + 31536000000).toISOString().split("T")[0],
-          links: { portal: "https://mubuslink.ai.studio", support: "https://mubuslink.ai.studio", sla: "https://mubuslink.ai.studio" }
-        }
-      ];
-      const selected = fallbackList[Math.floor(Math.random() * fallbackList.length)];
-      onAddPartner(selected);
-      if (onTriggerLog) {
-        onTriggerLog(`AI Fallback cataloged vendor: "${selected.name}" under active SLA contract.`, "success");
-      }
-    } finally {
-      setIsAiGenerating(false);
-    }
-  };
-
   // Helper to render icon based on logo string
   const renderLogoIcon = (iconName: string) => {
     const size = 18;
@@ -230,25 +144,13 @@ Generate a single raw JSON object only. Do NOT enclose in markdown code fences o
           />
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          <button 
-            onClick={handleAiSuggest}
-            disabled={isAiGenerating}
-            className="px-4 py-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-550 hover:to-indigo-550 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer select-none"
-            title="Use Gemini AI to dynamically match and onboarding a new logistics partner under active SLA with current date"
-          >
-            <Sparkles size={14} className={isAiGenerating ? "animate-spin" : ""} />
-            <span>{isAiGenerating ? "Matching..." : "AI Suggest Partner"}</span>
-          </button>
-
-          <button 
-            onClick={openAdd}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-550 text-slate-950 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer select-none"
-          >
-            <Plus size={14} className="font-black" />
-            <span>Register Vendor</span>
-          </button>
-        </div>
+        <button 
+          onClick={openAdd}
+          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-550 text-slate-950 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer select-none"
+        >
+          <Plus size={14} className="font-black" />
+          <span>Register Vendor</span>
+        </button>
       </div>
 
       {/* Partners Grid */}

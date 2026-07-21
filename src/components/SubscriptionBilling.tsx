@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import BillingControl from "./BillingControl";
 import { 
   CreditCard, 
   Lock, 
@@ -16,7 +17,8 @@ import {
   KeyRound,
   Eye,
   EyeOff,
-  Database
+  Database,
+  ExternalLink
 } from "lucide-react";
 import { 
   createUserWithEmailAndPassword, 
@@ -30,8 +32,6 @@ import {
 } from "firebase/auth";
 import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import { auth, db } from "../firebase";
-
-const BACKEND_URL = "https://mubuslink-backend-service-uc.a.run.app";
 
 interface SubscriptionBillingProps {
   onTriggerLog: (msg: string, type: "info" | "success" | "warning" | "error") => void;
@@ -70,6 +70,7 @@ export default function SubscriptionBilling({
   const [cardCvc, setCardCvc] = useState("");
   const [cardName, setCardName] = useState("");
   const [isPaying, setIsPaying] = useState(false);
+  const [isRedirectingStripe, setIsRedirectingStripe] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
 
   // Simulated Mock Mode Toggle (for seamless testing if Firebase Email/Password is disabled in Console)
@@ -93,27 +94,6 @@ export default function SubscriptionBilling({
 
   const trialDaysRemaining = getTrialDaysRemaining();
 
-  // Migrate profile if missing autoRenew on mount
-  useEffect(() => {
-    if (currentUserProfile && currentUserProfile.autoRenew === undefined) {
-      const updated = {
-        ...currentUserProfile,
-        autoRenew: true
-      };
-      
-      if (isMockMode || currentUserProfile.mock) {
-        localStorage.setItem("mubuslink_mock_user", JSON.stringify(updated));
-      } else {
-        try {
-          setDoc(doc(db, "users", currentUserProfile.uid), updated, { merge: true });
-        } catch (e) {
-          console.warn("Could not migrate profile in Firestore:", e);
-        }
-      }
-      onUserUpdate(updated);
-    }
-  }, [currentUserProfile]);
-
   // Watch auth status
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -133,7 +113,6 @@ export default function SubscriptionBilling({
               subscriptionStatus: "trial",
               subscriptionExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
               createdAt: new Date().toISOString(),
-              autoRenew: true,
               mock: false
             };
             await setDoc(doc(db, "users", user.uid), defaultProfile);
@@ -164,26 +143,6 @@ export default function SubscriptionBilling({
     }
   }, [isMockMode]);
 
-  // Check URL parameters for real Stripe session success or cancel
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const hasSuccess = params.get("payment_success") === "true" || params.get("status") === "success";
-    const hasCancel = params.get("payment_cancel") === "true" || params.get("status") === "cancelled";
-
-    if (hasSuccess) {
-      setPaymentSuccess(true);
-      onTriggerLog("Stripe payment confirmed! Your premium account is now active.", "success");
-      
-      // Clean up URL parameters so they don't persist on refresh
-      const cleanUrl = window.location.origin + window.location.pathname;
-      window.history.replaceState({}, document.title, cleanUrl);
-    } else if (hasCancel) {
-      onTriggerLog("Stripe payment cancelled. You can try checking out again whenever you are ready.", "warning");
-      const cleanUrl = window.location.origin + window.location.pathname;
-      window.history.replaceState({}, document.title, cleanUrl);
-    }
-  }, []);
-
   const useLocalAuthFallback = (uid: string, userName: string, userEmail: string) => {
     const profile = {
       uid,
@@ -193,7 +152,6 @@ export default function SubscriptionBilling({
       subscriptionStatus: "trial",
       subscriptionExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       createdAt: new Date().toISOString(),
-      autoRenew: true,
       mock: true
     };
     localStorage.setItem("mubuslink_mock_user", JSON.stringify(profile));
@@ -227,7 +185,6 @@ export default function SubscriptionBilling({
           subscriptionStatus: "trial",
           subscriptionExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
           createdAt: new Date().toISOString(),
-          autoRenew: true,
           mock: true
         };
         localStorage.setItem("mubuslink_mock_user", JSON.stringify(defaultProfile));
@@ -252,7 +209,6 @@ export default function SubscriptionBilling({
         subscriptionStatus: "trial" as const,
         subscriptionExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
         createdAt: new Date().toISOString(),
-        autoRenew: true,
         mock: false
       };
 
@@ -283,7 +239,6 @@ export default function SubscriptionBilling({
           subscriptionStatus: "trial",
           subscriptionExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
           createdAt: new Date().toISOString(),
-          autoRenew: true,
           mock: true
         };
         localStorage.setItem("mubuslink_mock_user", JSON.stringify(defaultProfile));
@@ -331,7 +286,6 @@ export default function SubscriptionBilling({
           subscriptionStatus: "trial",
           subscriptionExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
           createdAt: new Date().toISOString(),
-          autoRenew: true,
           mock: true
         };
         localStorage.setItem("mubuslink_mock_user", JSON.stringify(defaultProfile));
@@ -365,7 +319,6 @@ export default function SubscriptionBilling({
           subscriptionStatus: "trial",
           subscriptionExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
           createdAt: new Date().toISOString(),
-          autoRenew: true,
           mock: false
         };
       }
@@ -552,86 +505,31 @@ export default function SubscriptionBilling({
     }, 2000);
   };
 
-  // Real Stripe Hosted Checkout Redirect
-  const handleRealStripeRedirect = async (isTrial: boolean = false) => {
-    if (!currentUserProfile) {
-      onTriggerLog("Please sign up or sign in to start a checkout session.", "warning");
-      return;
-    }
-    
-    setIsPaying(true);
-    onTriggerLog(
-      isTrial 
-        ? "Contacting Stripe pricing endpoints to initiate your 7-Day Free Trial..." 
-        : "Contacting Stripe pricing endpoints to retrieve Checkout URL...", 
-      "info"
-    );
-
-    const requestBody = {
-      userId: currentUserProfile.uid,
-      planType: selectedPlan,
-      email: currentUserProfile.email,
-      plan: selectedPlan,
-      userEmail: currentUserProfile.email,
-      isTrial: isTrial
-    };
-
-    let sessionUrl = "";
-
-    // 1. Attempt using user's custom Cloud Run BACKEND_URL first
+  // Launch Official Hosted Stripe Checkout Session
+  const handleLaunchCheckout = async () => {
+    setIsRedirectingStripe(true);
+    onTriggerLog(`Initiating Stripe Checkout Session for ${selectedPlan.toUpperCase()} plan...`, "info");
     try {
-      console.log("Attempting checkout via Cloud Run Backend Service:", BACKEND_URL);
-      const response = await fetch(`${BACKEND_URL}/api/create-checkout-session`, {
+      const response = await fetch("/api/stripe/create-checkout-session", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(requestBody)
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: currentUserProfile?.email || email || "customer@mubuslink.com",
+          planType: selectedPlan,
+          isTrial: false
+        })
       });
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.url) {
-          sessionUrl = data.url;
-          console.log("Successfully retrieved checkout URL from Cloud Run Backend Service.");
-        }
+      const data = await response.json();
+      if (data.url) {
+        onTriggerLog("Stripe Checkout URL generated successfully! Redirecting to hosted payment portal...", "success");
+        window.location.href = data.url;
+      } else {
+        onTriggerLog(`Checkout creation failed: ${data.error || "Unknown error"}`, "error");
       }
-    } catch (e: any) {
-      console.warn("Cloud Run Backend Service checkout failed or unreachable, trying local server fallback...", e.message);
-    }
-
-    // 2. Fallback to local server endpoint if needed
-    if (!sessionUrl) {
-      try {
-        console.log("Attempting checkout via local workspace server fallback...");
-        const response = await fetch("/api/stripe/create-checkout-session", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify(requestBody)
-        });
-
-        const data = await response.json();
-        if (response.ok && data.url) {
-          sessionUrl = data.url;
-        } else {
-          throw new Error(data.error || data.details || "Failed to create checkout session from local workspace.");
-        }
-      } catch (err: any) {
-        console.error(err);
-        onTriggerLog(`Stripe Checkout Session failed on both backend & fallback: ${err.message}`, "error");
-        setIsPaying(false);
-        return;
-      }
-    }
-
-    if (sessionUrl) {
-      onTriggerLog("Checkout Session ready! Redirecting to secure Stripe Checkout page...", "success");
-      window.location.href = sessionUrl;
-    } else {
-      onTriggerLog("Failed to retrieve a valid Stripe Checkout URL.", "error");
-      setIsPaying(false);
+    } catch (err: any) {
+      onTriggerLog(`Stripe Checkout Session error: ${err.message}`, "error");
+    } finally {
+      setIsRedirectingStripe(false);
     }
   };
 
@@ -658,7 +556,7 @@ export default function SubscriptionBilling({
   };
 
   // Developer Sandbox controls
-  const handleDevSetStatus = async (status: "trial" | "monthly" | "yearly" | "expired" | "paid_expired") => {
+  const handleDevSetStatus = async (status: "trial" | "monthly" | "yearly" | "expired") => {
     if (!currentUserProfile) {
       onTriggerLog("Please sign up or sign in to test the subscription states.", "warning");
       return;
@@ -677,15 +575,6 @@ export default function SubscriptionBilling({
       expires = eightDaysAgo;
       if (onForceExpireToggle) {
         onForceExpireToggle(true);
-      }
-    } else if (status === "paid_expired") {
-      statusVal = "monthly";
-      // Set expires to 10 seconds ago to test auto-renewal trigger
-      const tenSecondsAgo = new Date();
-      tenSecondsAgo.setSeconds(tenSecondsAgo.getSeconds() - 10);
-      expires = tenSecondsAgo;
-      if (onForceExpireToggle) {
-        onForceExpireToggle(false);
       }
     } else {
       if (onForceExpireToggle) {
@@ -1001,49 +890,6 @@ export default function SubscriptionBilling({
                       {new Date(currentUserProfile.subscriptionExpiresAt).toLocaleDateString()}
                     </span>
                   </div>
-
-                  {/* Automatic Renewal Toggle */}
-                  <div className="border-t border-slate-900 pt-3 mt-2 flex items-center justify-between">
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-300 block">Automatic Renewal</span>
-                      <span className="text-[8px] text-slate-550 font-mono">
-                        {currentUserProfile.subscriptionStatus === "trial" 
-                          ? "Auto-bill when trial ends" 
-                          : "Auto-charge card ending in 4242"}
-                      </span>
-                    </div>
-                    <button
-                      onClick={async () => {
-                        const nextAutoRenew = !currentUserProfile.autoRenew;
-                        const updated = {
-                          ...currentUserProfile,
-                          autoRenew: nextAutoRenew
-                        };
-                        
-                        if (!isMockMode && !currentUserProfile.mock && auth.currentUser) {
-                          try {
-                            await setDoc(doc(db, "users", auth.currentUser.uid), updated, { merge: true });
-                          } catch (e) {
-                            console.warn("Could not sync autoRenew to Firestore:", e);
-                          }
-                        } else {
-                          localStorage.setItem("mubuslink_mock_user", JSON.stringify(updated));
-                        }
-                        
-                        onUserUpdate(updated);
-                        onTriggerLog(`Automatic renewal ${nextAutoRenew ? "ENABLED" : "DISABLED"} for your transit subscription.`, nextAutoRenew ? "success" : "warning");
-                      }}
-                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        currentUserProfile.autoRenew ? "bg-emerald-500" : "bg-slate-800"
-                      }`}
-                    >
-                      <span
-                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-slate-950 shadow ring-0 transition duration-200 ease-in-out ${
-                          currentUserProfile.autoRenew ? "translate-x-4" : "translate-x-0"
-                        }`}
-                      />
-                    </button>
-                  </div>
                 </div>
               </div>
 
@@ -1196,14 +1042,22 @@ export default function SubscriptionBilling({
               </div>
             ) : (
               <form onSubmit={handleStripePayment} className="space-y-4 text-xs">
-                {/* Visual guidance for credit card mockup */}
-                <div className="bg-slate-950 p-3.5 border border-slate-900 rounded-2xl flex items-center justify-between gap-3 text-[10px]">
-                  <div className="flex items-center gap-2">
-                    <div className="h-1.5 w-1.5 bg-emerald-400 rounded-full animate-pulse" />
-                    <span className="text-slate-450">Use test credential card:</span>
-                    <span className="font-mono bg-slate-900 px-1.5 py-0.5 rounded text-white select-all font-bold">4242 4242 4242 4242</span>
+                {/* Visual guidance for credit card mockup & Stripe Configuration */}
+                <div className="bg-slate-950 p-3.5 border border-slate-900 rounded-2xl space-y-2 text-[10px]">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <div className="h-1.5 w-1.5 bg-emerald-400 rounded-full animate-pulse" />
+                      <span className="text-slate-450">Stripe Live Gateway:</span>
+                      <span className="font-mono bg-slate-900 px-1.5 py-0.5 rounded text-emerald-400 select-all font-bold">
+                        {(import.meta as any).env?.VITE_STRIPE_PUBLISHABLE_KEY || "pk_live_Y8I4kIWBXPdQIfZ2tthPIFwV00DlqCjZva"}
+                      </span>
+                    </div>
+                    <span className="text-[9px] text-slate-550 font-mono">Connected</span>
                   </div>
-                  <span className="text-[9px] text-slate-550 font-mono">CVC: 123 | EXP: 12/28</span>
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-[9px] font-mono text-slate-500 pt-1.5 border-t border-slate-900">
+                    <div>Price ID (Monthly): <span className="text-slate-300">price_1TFLdKBMbxh6jv0C0MIn4aU5</span></div>
+                    <div>Price ID (Yearly): <span className="text-slate-300">price_1TFLeCBMbxh6jv0Clh2Evj4b</span></div>
+                  </div>
                 </div>
 
                 <div className="space-y-3.5">
@@ -1263,68 +1117,40 @@ export default function SubscriptionBilling({
                   </div>
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={isPaying || !currentUserProfile}
-                  className="w-full py-3 bg-emerald-600 hover:bg-emerald-555 disabled:bg-slate-900 disabled:text-slate-650 text-slate-950 font-black rounded-xl uppercase font-mono tracking-wider text-[10px] flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md"
-                >
-                  {isPaying ? (
-                    <>
-                      <div className="h-3 w-3 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
-                      <span>Charging via Stripe Gateway...</span>
-                    </>
-                  ) : (
-                    <>
-                      <CreditCard size={11} />
-                      <span>Pay {selectedPlan === "monthly" ? "$6.99" : "$69.99"} and subscribe</span>
-                    </>
-                  )}
-                </button>
-
-                <div className="relative my-4 flex items-center justify-center">
-                  <div className="absolute inset-0 flex items-center" aria-hidden="true">
-                    <div className="w-full border-t border-slate-900"></div>
-                  </div>
-                  <div className="relative bg-slate-950 px-2 text-[8px] font-black uppercase text-slate-500 font-mono tracking-widest">
-                    OR SECURE REDIRECT
-                  </div>
-                </div>
-
-                <div className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                   <button
-                    type="button"
-                    onClick={() => handleRealStripeRedirect(true)}
-                    disabled={isPaying || !currentUserProfile}
-                    className="w-full py-3 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 disabled:bg-slate-900 disabled:text-slate-650 text-slate-950 font-black rounded-xl uppercase font-mono tracking-wider text-[10px] flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md"
+                    type="submit"
+                    disabled={isPaying || isRedirectingStripe || !currentUserProfile}
+                    className="py-3 px-4 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-900 disabled:text-slate-650 text-slate-950 font-black rounded-xl uppercase font-mono tracking-wider text-[10px] flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md"
                   >
                     {isPaying ? (
                       <>
                         <div className="h-3 w-3 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
-                        <span>Processing Trial...</span>
+                        <span>Processing Direct Card...</span>
                       </>
                     ) : (
                       <>
-                        <Sparkles size={11} className="text-slate-950" />
-                        <span>Start 7-Day Free Trial on Stripe</span>
+                        <CreditCard size={11} />
+                        <span>Pay Direct ({selectedPlan === "monthly" ? "$6.99" : "$69.99"})</span>
                       </>
                     )}
                   </button>
 
                   <button
                     type="button"
-                    onClick={() => handleRealStripeRedirect(false)}
-                    disabled={isPaying || !currentUserProfile}
-                    className="w-full py-3 bg-indigo-950 hover:bg-indigo-900 disabled:bg-slate-900 disabled:text-slate-650 text-indigo-300 hover:text-white font-black rounded-xl uppercase font-mono tracking-wider text-[10px] flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md border border-indigo-500/20"
+                    onClick={handleLaunchCheckout}
+                    disabled={isRedirectingStripe || isPaying}
+                    className="py-3 px-4 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-900 disabled:text-slate-650 text-white font-black rounded-xl uppercase font-mono tracking-wider text-[10px] flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md"
                   >
-                    {isPaying ? (
+                    {isRedirectingStripe ? (
                       <>
-                        <div className="h-3 w-3 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
-                        <span>Generating Hosted Checkout...</span>
+                        <RefreshCw size={11} className="animate-spin" />
+                        <span>Redirecting to Stripe...</span>
                       </>
                     ) : (
                       <>
-                        <CreditCard size={11} className="text-indigo-400" />
-                        <span>Redirect to Stripe Hosted Checkout ({selectedPlan === "monthly" ? "$6.99" : "$69.99"})</span>
+                        <ExternalLink size={11} />
+                        <span>Hosted Stripe Checkout</span>
                       </>
                     )}
                   </button>
@@ -1332,6 +1158,9 @@ export default function SubscriptionBilling({
               </form>
             )}
           </div>
+
+          {/* DEDICATED BILLING & STRIPE CHECKOUT CONTROL PANEL */}
+          <BillingControl onTriggerLog={onTriggerLog} />
 
           {/* DEVELOPMENT EXPIRE SIMULATOR PANEL (Requested for instant and easy testing) */}
           <div className="p-5 bg-amber-500/5 border border-amber-500/20 rounded-3xl space-y-4">
@@ -1341,7 +1170,7 @@ export default function SubscriptionBilling({
             </div>
             
             <p className="text-[10px] text-slate-400 leading-relaxed">
-              Use these bypass controllers to immediately fast‑forward the 7‑Day trial clock or active subscriptions. This tests paywall redirects and auto-renewal processing instantly without waiting.
+              Use these bypass controllers to immediately fast‑forward the 7‑Day trial clock. This tests paywall redirects and paywall restrictions instantly without waiting for real‑time days.
             </p>
 
             <div className="flex flex-wrap gap-2 pt-1.5">
@@ -1355,17 +1184,8 @@ export default function SubscriptionBilling({
               </button>
 
               <button
-                onClick={() => handleDevSetStatus("paid_expired")}
-                className="px-3.5 py-2 bg-amber-600 hover:bg-amber-550 text-slate-950 rounded-xl text-[10px] font-black uppercase font-mono tracking-wider transition-colors cursor-pointer flex items-center gap-1"
-                title="Force expiration of paid subscription. If Auto-Renew is enabled, you'll see a background auto-renewal update in 10s. If disabled, you get locked out."
-              >
-                <Clock size={11} />
-                <span>Simulate Paid Expiry (Tests Auto-Renew)</span>
-              </button>
-
-              <button
                 onClick={() => handleDevSetStatus("trial")}
-                className="px-3.5 py-2 bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-300 rounded-xl text-[10px] font-black uppercase font-mono tracking-wider transition-colors cursor-pointer"
+                className="px-3.5 py-2 bg-amber-600 hover:bg-amber-550 text-slate-950 rounded-xl text-[10px] font-black uppercase font-mono tracking-wider transition-colors cursor-pointer"
                 title="Reset trial to 7 days active"
               >
                 Reset to Day 1 Active

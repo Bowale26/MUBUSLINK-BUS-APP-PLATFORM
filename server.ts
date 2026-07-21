@@ -1,261 +1,17 @@
 import express from 'express';
 import * as fs from 'fs';
 import * as path from 'path';
+import Stripe from 'stripe';
 import { GoogleGenAI } from '@google/genai';
 import { initializeApp, getApps } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { createServer as createViteServer } from 'vite';
-import Stripe from 'stripe';
-import cors from 'cors';
-
-let stripeClient: Stripe | null = null;
-function getStripe(): Stripe | null {
-  if (!stripeClient) {
-    const key = process.env.STRIPE_SECRET_KEY;
-    if (!key) {
-      console.warn("[Stripe Setup] STRIPE_SECRET_KEY environment variable is not set. Real payment flows will bypass.");
-      return null;
-    }
-    stripeClient = new Stripe(key);
-  }
-  return stripeClient;
-}
-
 
 async function startServer() {
   const app = express();
-  const PORT = process.env.NODE_ENV === "production" ? (process.env.PORT ? parseInt(process.env.PORT) : 8080) : 3000;
-
-  // CORS configuration for frontend app
-  app.use(cors({ origin: process.env.FRONTEND_URL || '*' }));
-
-  // Declare db at startServer scope so webhook can access it
-  let db: any = null;
-
-  // Helper to extract userId if metadata is not direct
-  async function getUserIdFromSubscription(subId: string): Promise<string | null> {
-    const stripe = getStripe();
-    if (!stripe) return null;
-    try {
-      const subscription = await stripe.subscriptions.retrieve(subId);
-      return subscription.metadata?.userId || null;
-    } catch (e) {
-      return null;
-    }
-  }
-
-  // Unified Stripe Webhook Handler
-  const handleWebhook = async (req: express.Request, res: express.Response) => {
-    const sig = req.headers['stripe-signature'];
-    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-    const stripe = getStripe();
-
-    if (!stripe) {
-      console.warn("[Stripe Webhook] Stripe not initialized (missing STRIPE_SECRET_KEY). Bypass/simulation.");
-      return res.status(200).json({ simulated: true });
-    }
-
-    let event;
-    try {
-      if (webhookSecret && sig) {
-        event = stripe.webhooks.constructEvent(req.body, sig as string, webhookSecret);
-      } else {
-        console.warn("[Stripe Webhook] Missing STRIPE_WEBHOOK_SECRET or signature. Parsing payload raw.");
-        event = JSON.parse(req.body.toString());
-      }
-    } catch (err: any) {
-      console.error(`[Stripe Webhook Error] ${err.message}`);
-      return res.status(400).send(`Webhook Error: ${err.message}`);
-    }
-
-    console.log(`[Stripe Webhook] Received event of type: ${event.type}`);
-
-    // Handle specific events enabled in your Stripe dashboard
-    switch (event.type) {
-      case 'checkout.session.completed': {
-        const session = event.data.object as any;
-        console.log(`💰 Checkout completed for session: ${session.id}`);
-        const userId = session.metadata?.userId || (session.subscription ? await getUserIdFromSubscription(session.subscription) : null);
-        const planType = session.metadata?.planType || 'monthly';
-
-        if (userId && db) {
-          const expiryDate = new Date();
-          if (planType === 'monthly') {
-            expiryDate.setMonth(expiryDate.getMonth() + 1);
-          } else {
-            expiryDate.setFullYear(expiryDate.getFullYear() + 1);
-          }
-
-          try {
-            await db.collection('users').doc(userId).set({
-              subscriptionStatus: planType,
-              subscriptionExpiresAt: expiryDate.toISOString()
-            }, { merge: true });
-            console.log(`[Stripe Webhook] Successfully updated user subscription for ${userId} to ${planType}`);
-          } catch (err: any) {
-            console.error("[Stripe Webhook] Failed to update user in Firestore:", err.message);
-          }
-        }
-        break;
-      }
-
-      case 'invoice.payment_succeeded': {
-        const session = event.data.object as any;
-        console.log(`✅ Invoice payment succeeded for session/invoice: ${session.id}`);
-        const userId = session.metadata?.userId || (session.subscription ? await getUserIdFromSubscription(session.subscription) : null);
-        const planType = session.metadata?.planType || 'monthly';
-
-        if (userId && db) {
-          const expiryDate = new Date();
-          if (planType === 'monthly') {
-            expiryDate.setMonth(expiryDate.getMonth() + 1);
-          } else {
-            expiryDate.setFullYear(expiryDate.getFullYear() + 1);
-          }
-
-          try {
-            await db.collection('users').doc(userId).set({
-              subscriptionStatus: planType,
-              subscriptionExpiresAt: expiryDate.toISOString()
-            }, { merge: true });
-            console.log(`[Stripe Webhook] Successfully renewed user subscription for ${userId} to ${planType}`);
-          } catch (err: any) {
-            console.error("[Stripe Webhook] Failed to update user in Firestore:", err.message);
-          }
-        }
-        break;
-      }
-
-      case 'customer.subscription.created': {
-        const subCreated = event.data.object as any;
-        console.log(`🆕 Subscription created: ${subCreated.id}`);
-        break;
-      }
-
-      case 'customer.subscription.deleted': {
-        const subscription = event.data.object as any;
-        console.log(`😢 Subscription ended: ${subscription.id}`);
-        const userId = subscription.metadata?.userId || await getUserIdFromSubscription(subscription.id);
-        if (userId && db) {
-          try {
-            await db.collection('users').doc(userId).set({
-              subscriptionStatus: 'none',
-              subscriptionExpiresAt: new Date().toISOString()
-            }, { merge: true });
-            console.log(`[Stripe Webhook] Successfully revoked user subscription for ${userId} due to cancellation.`);
-          } catch (err: any) {
-            console.error("[Stripe Webhook] Failed to update cancelled user in Firestore:", err.message);
-          }
-        }
-        break;
-      }
-
-      case 'invoice.paid': {
-        const invoicePaid = event.data.object as any;
-        console.log(`✅ Invoice paid: ${invoicePaid.id}`);
-        break;
-      }
-
-      case 'invoice.payment_failed': {
-        const invoiceFailed = event.data.object as any;
-        console.log(`⚠️ Invoice payment failed: ${invoiceFailed.id}`);
-        break;
-      }
-
-      default:
-        console.log(`Unhandled event type ${event.type}`);
-    }
-
-    res.json({ received: true });
-  };
-
-  // Stripe Webhook needs raw body for signature verification.
-  // Mount this BEFORE express.json()
-  app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), handleWebhook);
-  app.post('/api/webhook', express.raw({ type: 'application/json' }), handleWebhook);
+  const PORT = 3000;
 
   app.use(express.json());
-
-  // Unified Create Stripe Checkout Session
-  const handleCreateCheckoutSession = async (req: express.Request, res: express.Response) => {
-    // Handle both client request formats:
-    // 1. { userId, planType, email } (original format)
-    // 2. { plan, userId, userEmail } (user's template format)
-    // 3. { email, planType, isTrial } (new Stripe checkout request format)
-    const { userId, planType, email, plan, userEmail, isTrial } = req.body;
-    
-    const actualUserId = userId || "guest_portal";
-    const actualPlan = planType || plan || 'monthly';
-    const actualEmail = email || userEmail;
-
-    const stripe = getStripe();
-    if (!stripe) {
-      return res.status(500).json({ 
-        error: "Stripe key is missing or invalid on the server.",
-        feedback: "Please configure STRIPE_SECRET_KEY in the workspace Settings menu."
-      });
-    }
-
-    // Stripe Price IDs from Stripe Dashboard / environment variables
-    const PRICE_IDS: Record<string, string> = {
-      monthly: process.env.STRIPE_PRICE_ID_KEY_MONTHLY || 'price_1Q_MONTHLY_PLAN_ID',
-      yearly: process.env.STRIPE_PRICE_ID_KEY_YEARLY || 'price_1Q_YEARLY_PLAN_ID'
-    };
-
-    const priceId = PRICE_IDS[actualPlan] || PRICE_IDS.monthly;
-
-    const baseAppUrl = process.env.APP_URL || process.env.FRONTEND_URL || "https://mubuslink-app.web.app";
-
-    try {
-      // Support both styles of redirects: dashboard-styled parameters or app-root-styled parameters
-      const successUrl = baseAppUrl.includes("dashboard") 
-        ? `${baseAppUrl}?session_id={CHECKOUT_SESSION_ID}&status=success`
-        : `${baseAppUrl}/?payment_success=true&session_id={CHECKOUT_SESSION_ID}&status=success`;
-
-      const cancelUrl = baseAppUrl.includes("dashboard")
-        ? `${baseAppUrl}?status=cancelled`
-        : `${baseAppUrl}/?payment_cancel=true&status=cancelled`;
-
-      const sessionConfig: any = {
-        payment_method_types: ['card'],
-        customer_email: actualEmail || undefined,
-        mode: 'subscription',
-        line_items: [
-          {
-            price: priceId,
-            quantity: 1,
-          },
-        ],
-        success_url: successUrl,
-        cancel_url: cancelUrl,
-        metadata: {
-          userId: actualUserId,
-          planType: actualPlan
-        }
-      };
-
-      // Add 7-day trial parameter if trial requested
-      if (isTrial) {
-        sessionConfig.subscription_data = {
-          trial_period_days: 7,
-        };
-      }
-
-      const session = await stripe.checkout.sessions.create(sessionConfig);
-
-      console.log(`[Stripe Checkout] Created session ${session.id} for user ${actualUserId} (Trial: ${!!isTrial})`);
-      return res.json({ id: session.id, url: session.url });
-    } catch (error: any) {
-      console.error("[Stripe Checkout Error]", error.message);
-      return res.status(500).json({
-        error: "Stripe Checkout session creation failed",
-        details: error.message
-      });
-    }
-  };
-
-  app.post('/api/stripe/create-checkout-session', handleCreateCheckoutSession);
-  app.post('/api/create-checkout-session', handleCreateCheckoutSession);
 
   // Load Firebase applet configuration
   let firebaseConfig: any = {};
@@ -269,7 +25,7 @@ async function startServer() {
   }
 
   // Initialize Firebase Admin SDK
-  db = null;
+  let db: any = null;
   try {
     let appInstance: any = null;
     const existingApps = getApps();
@@ -313,6 +69,20 @@ async function startServer() {
       status: 'healthy',
       timestamp: new Date().toISOString(),
       service: 'Mubuslink Central AI API'
+    });
+  });
+
+  // POST /api/clear-cache - Clear server cookies and set Clear-Site-Data headers
+  app.post('/api/clear-cache', (_req, res) => {
+    res.setHeader('Clear-Site-Data', '"cache", "cookies", "storage", "executionContexts"');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    console.log('[Mubuslink AI] Received /api/clear-cache request. Clear-Site-Data header dispatched.');
+    return res.json({
+      success: true,
+      message: 'Server cache and cookies directive dispatched cleanly.',
+      timestamp: new Date().toISOString()
     });
   });
 
@@ -807,6 +577,60 @@ Output format strictly raw JSON:
     } catch (err: any) {
       console.warn("[Mubuslink AI] Database delete warning:", err.message);
       return res.status(500).json({ error: `Delete Failed: ${err.message}` });
+    }
+  });
+
+  // POST /api/stripe/create-checkout-session - Stripe Checkout Session Creator
+  app.post('/api/stripe/create-checkout-session', async (req, res) => {
+    try {
+      const { email, planType, isTrial } = req.body;
+
+      const secretKey = process.env.STRIPE_SECRET_KEY;
+      if (!secretKey) {
+        console.warn("[Mubuslink AI] STRIPE_SECRET_KEY not set in environment. Returning simulated Stripe checkout URL.");
+        const appUrl = process.env.APP_URL || 'https://mubuslink-app-188081155110.us-west1.run.app';
+        return res.json({
+          url: `${appUrl}/?session_id=cs_simulated_${Date.now()}&status=success`,
+          simulated: true,
+          message: "STRIPE_SECRET_KEY not set in environment. Returning fallback success redirect."
+        });
+      }
+
+      const stripe = new Stripe(secretKey);
+
+      const PRICE_MAP: Record<string, string> = {
+        monthly: process.env.STRIPE_PRICE_ID_KEY_MONTHLY || 'price_1TFLdKBMbxh6jv0C0MIn4aU5',
+        yearly: process.env.STRIPE_PRICE_ID_KEY_YEARLY || 'price_1TFLeCBMbxh6jv0Clh2Evj4b'
+      };
+
+      const priceId = PRICE_MAP[planType] || PRICE_MAP.monthly;
+      const appUrl = process.env.APP_URL || 'https://mubuslink-app-188081155110.us-west1.run.app';
+
+      const sessionConfig: any = {
+        payment_method_types: ['card'],
+        customer_email: email,
+        mode: 'subscription',
+        line_items: [
+          {
+            price: priceId,
+            quantity: 1,
+          },
+        ],
+        success_url: `${appUrl}/?session_id={CHECKOUT_SESSION_ID}&status=success`,
+        cancel_url: `${appUrl}/?status=cancelled`,
+      };
+
+      if (isTrial) {
+        sessionConfig.subscription_data = {
+          trial_period_days: 7,
+        };
+      }
+
+      const session = await stripe.checkout.sessions.create(sessionConfig);
+      return res.json({ url: session.url });
+    } catch (error: any) {
+      console.error('Checkout error:', error);
+      return res.status(500).json({ error: error.message });
     }
   });
 

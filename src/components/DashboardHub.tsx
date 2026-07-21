@@ -11,7 +11,8 @@ import {
   FileText, 
   CheckCircle,
   Clock,
-  ArrowRight
+  ArrowRight,
+  Sparkles
 } from "lucide-react";
 import { BusinessLink, Route, Partner, Campaign, LogMessage } from "../types";
 
@@ -178,6 +179,22 @@ export default function DashboardHub({
                 <div>
                   <h4 className="text-xs font-bold text-white group-hover:text-teal-400 transition-colors">Launch Promo Campaign</h4>
                   <p className="text-[10px] text-slate-500 mt-1 leading-normal">Promote underperforming routes with promo codes and targets.</p>
+                </div>
+              </button>
+
+              <button 
+                onClick={() => onNavigate("nova-suite")}
+                className="p-4 bg-gradient-to-r from-emerald-950/60 to-slate-950/80 hover:from-emerald-900/60 border border-emerald-500/30 rounded-2xl text-left transition-all group flex items-start gap-3 outline-none col-span-1 sm:col-span-2 cursor-pointer"
+              >
+                <div className="p-2 bg-[#26e6a6]/20 text-[#26e6a6] rounded-xl shrink-0 group-hover:scale-105 transition-transform">
+                  <Sparkles size={18} />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-white group-hover:text-[#26e6a6] transition-colors">Nova AI Creative Suite</h4>
+                    <span className="text-[9px] font-mono px-2 py-0.5 bg-[#12332a] text-[#26e6a6] rounded font-bold uppercase">10 Modules</span>
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1 leading-normal">Access Website Builder, AI SuperLab, Image Studio, Neural Cinema, Audio Symphony, SEO & Fonts engines.</p>
                 </div>
               </button>
             </div>
