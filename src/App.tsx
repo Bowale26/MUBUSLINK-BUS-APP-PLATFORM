@@ -122,6 +122,63 @@ export default function App() {
   const [logs, setLogs] = useState<LogMessage[]>([]);
 
   // Notifications bell state
+  // Helper to resolve current subscription badge info for header visual indicator
+  const getSubscriptionBadgeInfo = () => {
+    if (!currentUserProfile) {
+      return {
+        label: "Free Trial",
+        subtext: "7 Days",
+        badgeStyle: "bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/30 text-amber-400",
+        dotStyle: "bg-amber-400",
+        icon: <Clock size={11} className="text-amber-400" />
+      };
+    }
+
+    if (currentUserProfile.subscriptionStatus === "trial") {
+      const days = getTrialDaysRemaining();
+      if (isTrialExpired || days <= 0) {
+        return {
+          label: "Expired",
+          subtext: "Subscribe",
+          badgeStyle: "bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30 text-rose-400",
+          dotStyle: "bg-rose-500 animate-ping",
+          icon: <AlertTriangle size={11} className="text-rose-400 animate-pulse" />
+        };
+      }
+      return {
+        label: "Free Trial",
+        subtext: `${days}d left`,
+        badgeStyle: "bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/30 text-amber-400",
+        dotStyle: "bg-amber-400",
+        icon: <Clock size={11} className="text-amber-400" />
+      };
+    }
+
+    if (
+      currentUserProfile.subscriptionStatus === "monthly" ||
+      currentUserProfile.subscriptionStatus === "yearly" ||
+      currentUserProfile.subscriptionStatus === "active" ||
+      currentUserProfile.subscriptionStatus === "pro"
+    ) {
+      const planLabel = currentUserProfile.subscriptionStatus === "yearly" ? "Active Pro (Yearly)" : "Active Pro";
+      return {
+        label: planLabel,
+        subtext: "Subscribed",
+        badgeStyle: "bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/30 text-emerald-400",
+        dotStyle: "bg-emerald-400",
+        icon: <CheckCircle size={11} className="text-emerald-400" />
+      };
+    }
+
+    return {
+      label: "Expired",
+      subtext: "Renew Plan",
+      badgeStyle: "bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30 text-rose-400",
+      dotStyle: "bg-rose-500",
+      icon: <AlertTriangle size={11} className="text-rose-400" />
+    };
+  };
+
   const [notifications, setNotifications] = useState<{ id: string; msg: string; unread: boolean; time: string }[]>([
     { id: "1", msg: "Pacific Express (Route 101) dispatch SLA fully verified.", unread: true, time: "10m ago" },
     { id: "2", msg: "Allianz Fleet contract renewal critical review pending.", unread: true, time: "2h ago" },
@@ -447,6 +504,25 @@ export default function App() {
               <Cookie size={12} className={isClearingHeaderCache ? "animate-spin text-rose-400" : "text-amber-400"} />
               <span className="hidden lg:inline">{isClearingHeaderCache ? "Clearing..." : "Clear Cookies & Cache"}</span>
             </button>
+
+            {/* Subscription Status Visual Indicator Badge (Placed directly next to the notification bell) */}
+            {(() => {
+              const subBadge = getSubscriptionBadgeInfo();
+              return (
+                <button
+                  onClick={() => setActiveMenu("subscription")}
+                  className={`px-3 py-1.5 border rounded-xl text-[10px] font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer outline-none shadow-sm ${subBadge.badgeStyle}`}
+                  title="Subscription status — Click to view & manage billing"
+                >
+                  <span className={`h-1.5 w-1.5 rounded-full ${subBadge.dotStyle}`} />
+                  {subBadge.icon}
+                  <span className="tracking-wide uppercase font-black">{subBadge.label}</span>
+                  {subBadge.subtext && (
+                    <span className="text-[9px] opacity-75 hidden sm:inline font-sans">({subBadge.subtext})</span>
+                  )}
+                </button>
+              );
+            })()}
 
             {/* Notification bell dropdown trigger */}
             <div className="relative">

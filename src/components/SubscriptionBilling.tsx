@@ -1042,22 +1042,15 @@ export default function SubscriptionBilling({
               </div>
             ) : (
               <form onSubmit={handleStripePayment} className="space-y-4 text-xs">
-                {/* Visual guidance for credit card mockup & Stripe Configuration */}
-                <div className="bg-slate-950 p-3.5 border border-slate-900 rounded-2xl space-y-2 text-[10px]">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <div className="h-1.5 w-1.5 bg-emerald-400 rounded-full animate-pulse" />
-                      <span className="text-slate-450">Stripe Live Gateway:</span>
-                      <span className="font-mono bg-slate-900 px-1.5 py-0.5 rounded text-emerald-400 select-all font-bold">
-                        {(import.meta as any).env?.VITE_STRIPE_PUBLISHABLE_KEY || "pk_live_Y8I4kIWBXPdQIfZ2tthPIFwV00DlqCjZva"}
-                      </span>
-                    </div>
-                    <span className="text-[9px] text-slate-550 font-mono">Connected</span>
+                {/* Encrypted Stripe Gateway Security Banner */}
+                <div className="bg-slate-950 p-3.5 border border-slate-900 rounded-2xl flex items-center justify-between gap-3 text-[10px]">
+                  <div className="flex items-center gap-2">
+                    <div className="h-1.5 w-1.5 bg-emerald-400 rounded-full animate-pulse" />
+                    <span className="text-slate-300 font-semibold">256-Bit SSL Encrypted Stripe Gateway</span>
                   </div>
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-[9px] font-mono text-slate-500 pt-1.5 border-t border-slate-900">
-                    <div>Price ID (Monthly): <span className="text-slate-300">price_1TFLdKBMbxh6jv0C0MIn4aU5</span></div>
-                    <div>Price ID (Yearly): <span className="text-slate-300">price_1TFLeCBMbxh6jv0Clh2Evj4b</span></div>
-                  </div>
+                  <span className="text-[9px] text-emerald-400 font-mono bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full font-bold flex items-center gap-1">
+                    <ShieldCheck size={11} /> Active & Secured
+                  </span>
                 </div>
 
                 <div className="space-y-3.5">
