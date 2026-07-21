@@ -16,7 +16,8 @@ import {
   Zap,
   Truck,
   Ticket,
-  Shield
+  Shield,
+  Sparkles
 } from "lucide-react";
 import { Partner } from "../types";
 
@@ -56,6 +57,21 @@ export default function VendorsPartners({
       p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.category.toLowerCase().includes(searchTerm.toLowerCase());
   });
+
+  // AI Auto-Fill Vendor/Partner
+  const handleAIAutoFillPartner = () => {
+    const today = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    setPartnerName(`Mubuslink Fleet Logistics - ${today}`);
+    setPartnerLogo("Truck");
+    setPartnerCategory("Fleet Operations & Maintenance");
+    setPartnerEmail("logistics@mubuslink.com");
+    setPartnerPhone("+1 (800) 555-0199");
+    setPartnerStatus("active");
+    setPartnerRenewal(new Date(Date.now() + 31536000000).toISOString().split("T")[0]);
+    setPartnerPortal("https://mubuslink.com/vendors/portal");
+    setPartnerSupport("https://mubuslink.com/vendors/support");
+    setPartnerSLA("https://mubuslink.com/vendors/sla");
+  };
 
   const openAdd = () => {
     setPartnerName("");
@@ -249,18 +265,20 @@ export default function VendorsPartners({
                     </a>
                   </div>
 
-                  <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity pt-1">
+                  <div className="flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity pt-1">
                     <button 
                       onClick={() => openEdit(partner)}
-                      className="p-1 text-slate-500 hover:text-white rounded hover:bg-slate-900"
+                      className="p-1 px-2 text-slate-400 hover:text-white rounded hover:bg-slate-900 flex items-center gap-1 text-[10px]"
                     >
-                      <Edit size={11} />
+                      <Edit size={11} /> Edit
                     </button>
                     <button 
                       onClick={() => onDeletePartner(partner.id)}
-                      className="p-1 text-slate-500 hover:text-rose-400 rounded hover:bg-slate-900"
+                      className="px-2 py-1 bg-rose-950/40 hover:bg-rose-900/60 border border-rose-900/40 text-rose-300 rounded text-[9px] font-bold flex items-center gap-1 transition-all cursor-pointer"
+                      title="Delete partner record"
                     >
                       <Trash2 size={11} />
+                      <span>Delete ({new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })})</span>
                     </button>
                   </div>
                 </div>
@@ -282,6 +300,15 @@ export default function VendorsPartners({
             </div>
 
             <form onSubmit={submitAdd} className="space-y-4 text-xs">
+              {/* AI Auto-Fill Partner Banner Button */}
+              <button
+                type="button"
+                onClick={handleAIAutoFillPartner}
+                className="w-full py-2 bg-gradient-to-r from-emerald-500/20 via-indigo-500/20 to-emerald-500/20 hover:from-emerald-500/30 hover:to-indigo-500/30 border border-emerald-500/30 text-emerald-300 rounded-xl font-bold text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm"
+              >
+                <Sparkles size={12} className="text-emerald-400 animate-pulse" />
+                <span>AI Auto-Fill Vendor Specs ({new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })})</span>
+              </button>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-1">Company Name</label>
@@ -406,9 +433,9 @@ export default function VendorsPartners({
                 </button>
                 <button 
                   type="submit"
-                  className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-550 text-slate-950 rounded-xl uppercase font-bold text-[10px] tracking-wider transition-all"
+                  className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-550 text-slate-950 rounded-xl uppercase font-bold text-[10px] tracking-wider transition-all cursor-pointer"
                 >
-                  Onboard Vendor
+                  Onboard Vendor ({new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })})
                 </button>
               </div>
             </form>

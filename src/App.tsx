@@ -25,7 +25,8 @@ import {
   Cookie,
   Trash2,
   Sparkles,
-  Cpu
+  Cpu,
+  Search
 } from "lucide-react";
 
 import { clearAllCookiesAndCache } from "./utils/clearCache";
@@ -56,6 +57,7 @@ export default function App() {
   // Navigation State
   const [activeMenu, setActiveMenu] = useState<string>("dashboard");
   const [activeLinkCategory, setActiveLinkCategory] = useState<string>("all");
+  const [navSearchQuery, setNavSearchQuery] = useState<string>("");
 
   // Subscription & User profile state
   const [currentUserProfile, setCurrentUserProfile] = useState<any | null>(() => {
@@ -600,34 +602,71 @@ export default function App() {
         
         {/* Left Sidebar Navigation */}
         <aside className="md:w-[240px] shrink-0" id="sidebar-navigation">
-          <nav className="space-y-1 bg-slate-900/10 border border-slate-900 rounded-2xl p-2 md:sticky md:top-24">
-            {navItems.map((item) => {
-              const IconComp = item.icon;
-              const isActive = activeMenu === item.id;
-              const isLocked = isTrialExpired && item.id !== "subscription";
-              return (
+          <nav className="space-y-1 bg-slate-900/20 border border-slate-900 rounded-2xl p-2.5 md:sticky md:top-24 shadow-xl backdrop-blur-md">
+            
+            {/* Quick Navigation Search Filter Input */}
+            <div className="relative mb-2.5">
+              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+              <input
+                type="text"
+                value={navSearchQuery}
+                onChange={(e) => setNavSearchQuery(e.target.value)}
+                placeholder="Filter workspace..."
+                className="w-full pl-8 pr-7 py-2 bg-slate-950/80 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder:text-slate-500 outline-none focus:border-emerald-500/80 focus:ring-1 focus:ring-emerald-500/30 transition-all font-medium"
+              />
+              {navSearchQuery && (
                 <button
-                  key={item.id}
-                  disabled={isLocked}
-                  onClick={() => {
-                    setActiveMenu(item.id);
-                    addLog(`Opened workspace: ${item.label}`, "info");
-                  }}
-                  className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-left text-xs font-semibold tracking-wide transition-all ${
-                    isActive 
-                      ? "bg-emerald-600/10 border border-emerald-500/30 text-emerald-400 font-bold" 
-                      : isLocked
-                        ? "text-slate-650 border border-transparent cursor-not-allowed opacity-40"
-                        : "text-slate-400 border border-transparent hover:text-slate-200 hover:bg-slate-900/40"
-                  }`}
+                  onClick={() => setNavSearchQuery("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-200 p-0.5 rounded transition-colors"
+                  title="Clear search"
                 >
-                  <IconComp size={15} className={isActive ? "text-emerald-400" : isLocked ? "text-slate-700" : "text-slate-500"} />
-                  <span className="flex-1">{item.label}</span>
-                  {isLocked && <Lock size={11} className="text-rose-500/60" />}
-                  {isActive && !isLocked && <ChevronRight size={12} className="text-emerald-400/80" />}
+                  <X size={12} />
                 </button>
+              )}
+            </div>
+
+            {/* Navigation Items */}
+            {(() => {
+              const filteredItems = navItems.filter((item) =>
+                item.label.toLowerCase().includes(navSearchQuery.toLowerCase())
               );
-            })}
+
+              if (filteredItems.length === 0) {
+                return (
+                  <div className="p-3 text-center text-[11px] text-slate-500 italic">
+                    No workspace found
+                  </div>
+                );
+              }
+
+              return filteredItems.map((item) => {
+                const IconComp = item.icon;
+                const isActive = activeMenu === item.id;
+                const isLocked = isTrialExpired && item.id !== "subscription";
+                return (
+                  <button
+                    key={item.id}
+                    disabled={isLocked}
+                    onClick={() => {
+                      setActiveMenu(item.id);
+                      addLog(`Opened workspace: ${item.label}`, "info");
+                    }}
+                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-left text-xs font-semibold tracking-wide transition-all duration-200 transform hover:scale-[1.02] hover:translate-x-1 active:scale-[0.98] cursor-pointer ${
+                      isActive 
+                        ? "border-l-4 border-l-emerald-400 bg-gradient-to-r from-emerald-500/20 via-emerald-500/10 to-transparent border-emerald-500/40 text-emerald-300 font-bold shadow-[0_0_18px_rgba(16,185,129,0.2)]" 
+                        : isLocked
+                          ? "text-slate-650 border border-transparent cursor-not-allowed opacity-40"
+                          : "text-slate-400 border border-transparent hover:text-slate-200 hover:bg-slate-900/60 hover:border-slate-800"
+                    }`}
+                  >
+                    <IconComp size={15} className={isActive ? "text-emerald-400 animate-pulse" : isLocked ? "text-slate-700" : "text-slate-500"} />
+                    <span className="flex-1">{item.label}</span>
+                    {isLocked && <Lock size={11} className="text-rose-500/60" />}
+                    {isActive && !isLocked && <ChevronRight size={12} className="text-emerald-400/80" />}
+                  </button>
+                );
+              });
+            })()}
           </nav>
         </aside>
 

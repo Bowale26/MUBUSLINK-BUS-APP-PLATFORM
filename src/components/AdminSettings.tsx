@@ -194,8 +194,9 @@ export default function AdminSettings({
                       </th>
                       <th className="py-3 px-2">Project ID / Details</th>
                       <th className="py-3 px-2">Business Name</th>
-                      <th className="py-3 px-2">Region Scope</th>
-                      <th className="py-3 px-2 text-right">Created Date</th>
+                      <th className="py-3 px-2">Jurisdictions</th>
+                      <th className="py-3 px-2">Created Date</th>
+                      <th className="py-3 px-2 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-900/60 font-medium">
@@ -233,8 +234,23 @@ export default function AdminSettings({
                             {project.jurisdictions || "Cascadia"}
                           </td>
                           
-                          <td className="py-3.5 px-2 text-right text-slate-500 font-mono text-[10px]">
+                          <td className="py-3.5 px-2 text-slate-500 font-mono text-[10px]">
                             {project.createdAt ? new Date(project.createdAt).toLocaleDateString() : "N/A"}
+                          </td>
+
+                          <td className="py-3.5 px-2 text-right">
+                            <button
+                              onClick={() => {
+                                if (confirm(`Delete project '${project.businessName}'?`)) {
+                                  onDeleteProjects([project.projectId]);
+                                }
+                              }}
+                              className="px-2 py-1 bg-rose-950/40 hover:bg-rose-900/60 border border-rose-900/40 text-rose-300 rounded text-[9px] font-bold flex items-center gap-1 transition-all ml-auto cursor-pointer"
+                              title="Delete project"
+                            >
+                              <Trash2 size={11} />
+                              <span>Delete ({new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })})</span>
+                            </button>
                           </td>
                         </tr>
                       );

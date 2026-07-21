@@ -87,6 +87,20 @@ export default function MarketingPromotions({
   const [previewDevice, setPreviewDevice] = useState<"mobile" | "tablet" | "desktop">("desktop");
   const [selectedPreviewPage, setSelectedPreviewPage] = useState("home");
 
+  // AI Auto-Fill Campaign Specs
+  const handleAIAutoFillCampaign = () => {
+    const todayISO = new Date().toISOString().split("T")[0];
+    const nextMonthISO = new Date(Date.now() + 2592000000).toISOString().split("T")[0];
+    const todayStr = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    setCampName(`Cascadia Rapid Transit Special - ${todayStr}`);
+    setCampChannel("Social, Email & Search Ads");
+    setCampStart(todayISO);
+    setCampEnd(nextMonthISO);
+    setCampStatus("active");
+    setCampLanding(`https://mubuslink.ai.studio/marketing/cascadia-${todayISO}`);
+    setCampCodes("CASCADIA20, EXPRESS26");
+  };
+
   const openAddCamp = () => {
     setCampName("");
     setCampChannel("");
@@ -340,12 +354,14 @@ export default function MarketingPromotions({
                   </div>
                 </div>
 
-                <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity pt-3 border-t border-slate-900/40 mt-3">
+                <div className="flex items-center justify-end opacity-0 group-hover:opacity-100 transition-opacity pt-3 border-t border-slate-900/40 mt-3">
                   <button 
                     onClick={() => onDeleteCampaign(camp.id)}
-                    className="p-1 text-slate-500 hover:text-rose-400 rounded hover:bg-slate-900 transition-colors"
+                    className="px-2.5 py-1 bg-rose-950/40 hover:bg-rose-900/60 border border-rose-900/40 text-rose-300 rounded-lg text-[9px] font-bold flex items-center gap-1 transition-all cursor-pointer"
+                    title="Terminate Campaign"
                   >
                     <Trash2 size={11} />
+                    <span>Terminate ({new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })})</span>
                   </button>
                 </div>
               </div>
@@ -583,6 +599,16 @@ export default function MarketingPromotions({
             </div>
 
             <form onSubmit={submitAddCampaign} className="space-y-4 text-xs">
+              {/* AI Auto-Fill Campaign Banner Button */}
+              <button
+                type="button"
+                onClick={handleAIAutoFillCampaign}
+                className="w-full py-2 bg-gradient-to-r from-emerald-500/20 via-indigo-500/20 to-emerald-500/20 hover:from-emerald-500/30 hover:to-indigo-500/30 border border-emerald-500/30 text-emerald-300 rounded-xl font-bold text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm"
+              >
+                <Sparkles size={12} className="text-emerald-400 animate-pulse" />
+                <span>AI Auto-Fill Campaign Specs ({new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })})</span>
+              </button>
+
               <div>
                 <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-1">Campaign Title</label>
                 <input 
@@ -700,9 +726,9 @@ export default function MarketingPromotions({
                 </button>
                 <button 
                   type="submit"
-                  className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-550 text-slate-950 rounded-xl uppercase font-bold text-[10px] tracking-wider transition-all"
+                  className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-550 text-slate-950 rounded-xl uppercase font-bold text-[10px] tracking-wider transition-all cursor-pointer"
                 >
-                  Onboard Campaign
+                  Onboard Campaign ({new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })})
                 </button>
               </div>
             </form>

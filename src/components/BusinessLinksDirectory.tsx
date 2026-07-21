@@ -183,6 +183,18 @@ export default function BusinessLinksDirectory({
     return links.find(l => l.id === selectedLinkId) || null;
   }, [links, selectedLinkId]);
 
+  // AI-Powered Link Generator & Auto-Fill Tool
+  const handleAIAutoFillLink = () => {
+    const today = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    setFormTitle(`AI Portal Hub - ${today}`);
+    setFormDesc("AI-Powered central resource endpoint for real-time dispatch and legal compliance monitoring.");
+    setFormCategory(activeCategory !== "all" ? activeCategory : "operations");
+    setFormTags(`AI-Generated, Live, ${today.replace(/[^a-zA-Z0-9]/g, "")}`);
+    setFormUrl("https://mubuslink.com/ai/portal");
+    setFormDirSource("Internal Directory");
+    setFormNotes(`Auto-generated via AI Tools on ${today}`);
+  };
+
   // Add Link Modal open
   const openAdd = (catDefault?: string) => {
     setFormTitle("");
@@ -1265,6 +1277,16 @@ export default function BusinessLinksDirectory({
             </div>
 
             <form onSubmit={submitAdd} className="space-y-4 text-xs">
+              {/* AI Tools Auto-Fill Banner Button */}
+              <button
+                type="button"
+                onClick={handleAIAutoFillLink}
+                className="w-full py-2 bg-gradient-to-r from-emerald-500/20 via-indigo-500/20 to-emerald-500/20 hover:from-emerald-500/30 hover:to-indigo-500/30 border border-emerald-500/30 text-emerald-300 rounded-xl font-bold text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm"
+              >
+                <Sparkles size={12} className="text-emerald-400 animate-pulse" />
+                <span>AI Auto-Fill Link Specs ({new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })})</span>
+              </button>
+
               <div>
                 <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-1">Title</label>
                 <input
@@ -1359,9 +1381,9 @@ export default function BusinessLinksDirectory({
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-550 text-slate-950 rounded-xl uppercase font-bold text-[10px]"
+                  className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-550 text-slate-950 rounded-xl uppercase font-bold text-[10px] cursor-pointer"
                 >
-                  Save Business Link
+                  Save Business Link ({new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })})
                 </button>
               </div>
             </form>

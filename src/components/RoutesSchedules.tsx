@@ -11,7 +11,8 @@ import {
   ExternalLink,
   CheckCircle,
   XCircle,
-  FileText
+  FileText,
+  Sparkles
 } from "lucide-react";
 import { Route, BusinessLink } from "../types";
 
@@ -45,6 +46,17 @@ export default function RoutesSchedules({
 
   // Find active route
   const activeRoute = routes.find(r => r.id === selectedRouteId) || routes[0] || null;
+
+  // AI-Powered Route Generator & Auto-Fill Tool
+  const handleAIAutoFillRoute = () => {
+    const today = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    setRouteName(`Cascadia Rapid Express (Route 909) - ${today}`);
+    setRouteRegion("Pacific Northwest Metro Corridor");
+    setRouteStatus("active");
+    setRouteVehicles("Coach Bus #401, Coach Bus #408");
+    setRouteStops("Seattle Central Terminal, Bellevue Plaza, Snoqualmie Station, Ellensburg Hub");
+    setRouteDrivers("Alex Vance, Sarah Jenkins");
+  };
 
   const openAdd = () => {
     setRouteName("");
@@ -180,10 +192,11 @@ export default function RoutesSchedules({
                   </button>
                   <button 
                     onClick={() => onDeleteRoute(activeRoute.id)}
-                    className="p-2 bg-slate-900 hover:bg-slate-800 border border-slate-850 rounded-xl text-slate-400 hover:text-rose-400 transition-colors"
+                    className="px-3 py-2 bg-rose-950/40 hover:bg-rose-900/60 border border-rose-900/40 text-rose-300 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
                     title="Delete route schedule"
                   >
                     <Trash2 size={13} />
+                    <span>Delete Route ({new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })})</span>
                   </button>
                 </div>
               </div>
@@ -317,6 +330,16 @@ export default function RoutesSchedules({
             </div>
 
             <form onSubmit={submitAdd} className="space-y-4 text-xs">
+              {/* AI Tools Auto-Fill Banner Button */}
+              <button
+                type="button"
+                onClick={handleAIAutoFillRoute}
+                className="w-full py-2 bg-gradient-to-r from-emerald-500/20 via-indigo-500/20 to-emerald-500/20 hover:from-emerald-500/30 hover:to-indigo-500/30 border border-emerald-500/30 text-emerald-300 rounded-xl font-bold text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm"
+              >
+                <Sparkles size={12} className="text-emerald-400 animate-pulse" />
+                <span>AI Auto-Fill Route Specs ({new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })})</span>
+              </button>
+
               <div>
                 <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-1">Route Name / Identifier</label>
                 <input 
@@ -423,9 +446,9 @@ export default function RoutesSchedules({
                 </button>
                 <button 
                   type="submit"
-                  className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-550 text-slate-950 rounded-xl uppercase font-bold text-[10px] tracking-wider transition-all"
+                  className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-550 text-slate-950 rounded-xl uppercase font-bold text-[10px] tracking-wider transition-all cursor-pointer"
                 >
-                  Register Route
+                  Register Route ({new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })})
                 </button>
               </div>
             </form>
