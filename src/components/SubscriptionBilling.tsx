@@ -553,21 +553,27 @@ export default function SubscriptionBilling({
   };
 
   // Real Stripe Hosted Checkout Redirect
-  const handleRealStripeRedirect = async () => {
+  const handleRealStripeRedirect = async (isTrial: boolean = false) => {
     if (!currentUserProfile) {
       onTriggerLog("Please sign up or sign in to start a checkout session.", "warning");
       return;
     }
     
     setIsPaying(true);
-    onTriggerLog("Contacting Stripe pricing endpoints to retrieve Checkout URL...", "info");
+    onTriggerLog(
+      isTrial 
+        ? "Contacting Stripe pricing endpoints to initiate your 7-Day Free Trial..." 
+        : "Contacting Stripe pricing endpoints to retrieve Checkout URL...", 
+      "info"
+    );
 
     const requestBody = {
       userId: currentUserProfile.uid,
       planType: selectedPlan,
       email: currentUserProfile.email,
       plan: selectedPlan,
-      userEmail: currentUserProfile.email
+      userEmail: currentUserProfile.email,
+      isTrial: isTrial
     };
 
     let sessionUrl = "";
@@ -1284,24 +1290,45 @@ export default function SubscriptionBilling({
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={handleRealStripeRedirect}
-                  disabled={isPaying || !currentUserProfile}
-                  className="w-full py-3 bg-indigo-950 hover:bg-indigo-900 disabled:bg-slate-900 disabled:text-slate-650 text-indigo-300 font-black rounded-xl uppercase font-mono tracking-wider text-[10px] flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md border border-indigo-500/20"
-                >
-                  {isPaying ? (
-                    <>
-                      <div className="h-3 w-3 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
-                      <span>Generating Hosted Checkout...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles size={11} className="text-indigo-400" />
-                      <span>Redirect to Stripe Hosted Checkout ({selectedPlan === "monthly" ? "$6.99" : "$69.99"})</span>
-                    </>
-                  )}
-                </button>
+                <div className="space-y-3">
+                  <button
+                    type="button"
+                    onClick={() => handleRealStripeRedirect(true)}
+                    disabled={isPaying || !currentUserProfile}
+                    className="w-full py-3 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 disabled:bg-slate-900 disabled:text-slate-650 text-slate-950 font-black rounded-xl uppercase font-mono tracking-wider text-[10px] flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md"
+                  >
+                    {isPaying ? (
+                      <>
+                        <div className="h-3 w-3 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                        <span>Processing Trial...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles size={11} className="text-slate-950" />
+                        <span>Start 7-Day Free Trial on Stripe</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleRealStripeRedirect(false)}
+                    disabled={isPaying || !currentUserProfile}
+                    className="w-full py-3 bg-indigo-950 hover:bg-indigo-900 disabled:bg-slate-900 disabled:text-slate-650 text-indigo-300 hover:text-white font-black rounded-xl uppercase font-mono tracking-wider text-[10px] flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md border border-indigo-500/20"
+                  >
+                    {isPaying ? (
+                      <>
+                        <div className="h-3 w-3 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+                        <span>Generating Hosted Checkout...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CreditCard size={11} className="text-indigo-400" />
+                        <span>Redirect to Stripe Hosted Checkout ({selectedPlan === "monthly" ? "$6.99" : "$69.99"})</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </form>
             )}
           </div>

@@ -181,15 +181,12 @@ async function startServer() {
     // Handle both client request formats:
     // 1. { userId, planType, email } (original format)
     // 2. { plan, userId, userEmail } (user's template format)
-    const { userId, planType, email, plan, userEmail } = req.body;
+    // 3. { email, planType, isTrial } (new Stripe checkout request format)
+    const { userId, planType, email, plan, userEmail, isTrial } = req.body;
     
-    const actualUserId = userId;
+    const actualUserId = userId || "guest_portal";
     const actualPlan = planType || plan || 'monthly';
     const actualEmail = email || userEmail;
-
-    if (!actualUserId) {
-      return res.status(400).json({ error: "Missing required parameter: userId" });
-    }
 
     const stripe = getStripe();
     if (!stripe) {
@@ -199,37 +196,54 @@ async function startServer() {
       });
     }
 
-    // Determine the Price ID based on the requested planType and environment variables
-    const monthlyPriceId = process.env.STRIPE_PRICE_ID_KEY_MONTHLY || "price_1TFLdKBMbxh6jv0C0MIn4aU5";
-    const yearlyPriceId = process.env.STRIPE_PRICE_ID_KEY_YEARLY || "price_1TFLeCBMbxh6jv0Clh2Evj4b";
-    const priceId = actualPlan === 'yearly' ? yearlyPriceId : monthlyPriceId;
+    // Stripe Price IDs from Stripe Dashboard / environment variables
+    const PRICE_IDS: Record<string, string> = {
+      monthly: process.env.STRIPE_PRICE_ID_KEY_MONTHLY || 'price_1Q_MONTHLY_PLAN_ID',
+      yearly: process.env.STRIPE_PRICE_ID_KEY_YEARLY || 'price_1Q_YEARLY_PLAN_ID'
+    };
 
-    const frontendUrl = process.env.FRONTEND_URL || "https://mubuslink-app.web.app";
+    const priceId = PRICE_IDS[actualPlan] || PRICE_IDS.monthly;
+
+    const baseAppUrl = process.env.APP_URL || process.env.FRONTEND_URL || "https://mubuslink-app.web.app";
 
     try {
-      // Support both styles of redirects: parameters checked by frontend App.tsx / SubscriptionBilling.tsx
-      const successUrl = `${frontendUrl}/?payment_success=true&session_id={CHECKOUT_SESSION_ID}&status=success`;
-      const cancelUrl = `${frontendUrl}/?payment_cancel=true&status=cancelled`;
+      // Support both styles of redirects: dashboard-styled parameters or app-root-styled parameters
+      const successUrl = baseAppUrl.includes("dashboard") 
+        ? `${baseAppUrl}?session_id={CHECKOUT_SESSION_ID}&status=success`
+        : `${baseAppUrl}/?payment_success=true&session_id={CHECKOUT_SESSION_ID}&status=success`;
 
-      const session = await stripe.checkout.sessions.create({
+      const cancelUrl = baseAppUrl.includes("dashboard")
+        ? `${baseAppUrl}?status=cancelled`
+        : `${baseAppUrl}/?payment_cancel=true&status=cancelled`;
+
+      const sessionConfig: any = {
         payment_method_types: ['card'],
+        customer_email: actualEmail || undefined,
+        mode: 'subscription',
         line_items: [
           {
             price: priceId,
             quantity: 1,
           },
         ],
-        mode: 'subscription',
         success_url: successUrl,
         cancel_url: cancelUrl,
-        customer_email: actualEmail || undefined,
         metadata: {
           userId: actualUserId,
           planType: actualPlan
         }
-      });
+      };
 
-      console.log(`[Stripe Checkout] Created session ${session.id} for user ${actualUserId}`);
+      // Add 7-day trial parameter if trial requested
+      if (isTrial) {
+        sessionConfig.subscription_data = {
+          trial_period_days: 7,
+        };
+      }
+
+      const session = await stripe.checkout.sessions.create(sessionConfig);
+
+      console.log(`[Stripe Checkout] Created session ${session.id} for user ${actualUserId} (Trial: ${!!isTrial})`);
       return res.json({ id: session.id, url: session.url });
     } catch (error: any) {
       console.error("[Stripe Checkout Error]", error.message);
