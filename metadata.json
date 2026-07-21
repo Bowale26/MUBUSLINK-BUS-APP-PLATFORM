@@ -1,0 +1,8 @@
+{
+  "name": "MUBUSLINK BUS APP PLATFORM",
+  "description": "A centralized business-links and operations dashboard for bus companies storing and displaying internal/external business links, partners, routes, schedules, analytics, and admin settings.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

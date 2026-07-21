@@ -1,0 +1,164 @@
+{
+  "entities": {
+    "GlobalStats": {
+      "title": "GlobalStats",
+      "description": "Global KPI statistics for Mubuslink AI",
+      "type": "object",
+      "required": [
+        "activeWebsites",
+        "totalVisitors",
+        "aiWordsWritten",
+        "botConversations",
+        "trialConversions",
+        "totalRevenue",
+        "totalSignups"
+      ],
+      "properties": {
+        "activeWebsites": {
+          "type": "integer",
+          "description": "Number of active managed websites"
+        },
+        "totalVisitors": {
+          "type": "integer",
+          "description": "Total visitor hits tracked"
+        },
+        "aiWordsWritten": {
+          "type": "integer",
+          "description": "Total words authored by the Gemini agent"
+        },
+        "botConversations": {
+          "type": "integer",
+          "description": "Total chat interactions"
+        },
+        "trialConversions": {
+          "type": "integer",
+          "description": "Total trial signups converted"
+        },
+        "totalRevenue": {
+          "type": "integer",
+          "description": "Total processed revenue"
+        },
+        "totalSignups": {
+          "type": "integer",
+          "description": "Total platform signups"
+        }
+      }
+    },
+    "UserProject": {
+      "title": "UserProject",
+      "description": "Generated website project configuration and layouts",
+      "type": "object",
+      "required": [
+        "projectId",
+        "businessName",
+        "sitemap",
+        "seo",
+        "createdAt"
+      ],
+      "properties": {
+        "projectId": {
+          "type": "string",
+          "description": "Unique project identifier"
+        },
+        "businessName": {
+          "type": "string",
+          "description": "The corporate legal entity name"
+        },
+        "jurisdictions": {
+          "type": "string",
+          "description": "Active legal regulatory scopes"
+        },
+        "audience": {
+          "type": "string",
+          "description": "Audience focus details"
+        },
+        "tone": {
+          "type": "string",
+          "description": "Brand tone preference"
+        },
+        "services": {
+          "type": "string",
+          "description": "Audited services description"
+        },
+        "brandStyle": {
+          "type": "string",
+          "description": "Stylistic parameters used"
+        },
+        "sitemap": {
+          "type": "array",
+          "description": "Array of page titles in navigation map"
+        },
+        "pages": {
+          "type": "object",
+          "description": "Map containing page structures and responsive layouts"
+        },
+        "seo": {
+          "type": "object",
+          "description": "Metadata details"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Creation timestamp"
+        }
+      }
+    },
+    "User": {
+      "title": "User",
+      "description": "User profile with trial and subscription state",
+      "type": "object",
+      "required": [
+        "uid",
+        "name",
+        "email",
+        "trialStartedAt",
+        "subscriptionStatus",
+        "subscriptionExpiresAt",
+        "createdAt"
+      ],
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Unique Firebase Auth identifier"
+        },
+        "name": {
+          "type": "string",
+          "description": "The user's full name"
+        },
+        "email": {
+          "type": "string",
+          "description": "The user's registered email address"
+        },
+        "trialStartedAt": {
+          "type": "string",
+          "description": "ISO timestamp when the 7-day trial started"
+        },
+        "subscriptionStatus": {
+          "type": "string",
+          "description": "Current status of the subscription: 'trial', 'monthly', 'yearly', or 'none'"
+        },
+        "subscriptionExpiresAt": {
+          "type": "string",
+          "description": "ISO timestamp when the subscription or trial expires"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp of account creation"
+        }
+      }
+    }
+  },
+  "firestore": {
+    "global_stats/{docId}": {
+      "schema": "GlobalStats",
+      "description": "Collection storing global Mubuslink platform KPIs and state diagnostics"
+    },
+    "user_projects/{projectId}": {
+      "schema": "UserProject",
+      "description": "Collection storing structural AI-generated website layouts and designs"
+    },
+    "users/{userId}": {
+      "schema": "User",
+      "description": "Collection storing user profiles and subscription plans"
+    }
+  }
+}
